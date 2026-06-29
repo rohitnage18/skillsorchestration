@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Skill Orchestration
 
 A personal, multi-domain skills library, plus the tooling that serves it to AI coding
@@ -54,3 +55,6 @@ Create a new folder under `skills/` with a `SKILL.md` (and an optional `referenc
 folder) following the same pattern as the existing skills. No code changes are needed
 anywhere else — the MCP server and the VS Code extension both discover skills by reading
 the `skills/` folder at runtime.
+=======
+# skillsorchestration
+>>>>>>> ab9cdc3f6c8b3bfd6aff8c5d8e7c1656378f3bde
