@@ -1,0 +1,27 @@
+{
+  "name": "skills-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server exposing a local library of domain-specific SKILL.md files to Claude Code, Cursor, and other MCP-compatible tools.",
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "skills-mcp-server": "build/index.js"
+  },
+  "scripts": {
+    "build": "tsc && shx chmod +x build/index.js",
+    "watch": "tsc --watch",
+    "start": "node build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "shx": "^0.3.4",
+    "typescript": "^5.7.2"
+  }
+}
