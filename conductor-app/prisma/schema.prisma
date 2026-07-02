@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      UserRole @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skills        Skill[]
+  workflows     Workflow[]
+  runs          WorkflowRun[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+
+  @@index([role])
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+model Skill {
+  id          String     @id @default(cuid())
+  ownerId     String
+  name        String
+  slug        String
+  description String?
+  type        SkillType
+
+  endpointUrl String?
+  method      HttpMethod?
+  headers     Json?
+  functionKey String?
+
+  inputSchema  Json
+  outputSchema Json
+  metadata     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, slug])
+  @@index([ownerId])
+}
+
+enum SkillType {
+  HTTP
+  SERVER_FUNCTION
+}
+
+enum HttpMethod {
+  GET
+  POST
+  PUT
+  PATCH
+  DELETE
+}
+
+model Workflow {
+  id          String  @id @default(cuid())
+  ownerId     String
+  name        String
+  description String?
+  definition  Json
+  version     Int     @default(1)
+  isPublished Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  runs  WorkflowRun[]
+
+  @@index([ownerId])
+}
+
+model WorkflowRun {
+  id         String            @id @default(cuid())
+  workflowId String
+  userId     String
+  status     WorkflowRunStatus @default(PENDING)
+
+  input  Json?
+  output Json?
+  error  Json?
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  workflow Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodeRuns NodeRun[]
+
+  @@index([workflowId])
+  @@index([userId])
+}
+
+enum WorkflowRunStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+model NodeRun {
+  id      String        @id @default(cuid())
+  runId   String
+  nodeId  String
+  skillId String?
+  status  NodeRunStatus @default(PENDING)
+
+  input  Json?
+  output Json?
+  error  Json?
+
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  run WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([skillId])
+}
+
+enum NodeRunStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // "skill:create", "skill:update", "skill:delete", "workflow:run", etc.
+  resource  String   // "skill", "workflow", "workflow_run"
+  resourceId String
+  
+  changes   Json?    // { before: {...}, after: {...} }
+  metadata  Json?    // additional context
+  
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String               @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType
+  
+  // Reference to the audit log that triggered this notification
+  auditLogId String?
+  
+  // Email delivery tracking
+  emailSent Boolean              @default(false)
+  sentAt    DateTime?
+  
+  // Notification status
+  read      Boolean              @default(false)
+  readAt    DateTime?
+  
+  createdAt DateTime             @default(now())
+  
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([emailSent])
+  @@index([createdAt])
+}
+
+enum NotificationType {
+  SKILL_CREATED
+  SKILL_UPDATED
+  SKILL_DELETED
+  WORKFLOW_CREATED
+  WORKFLOW_UPDATED
+  WORKFLOW_DELETED
+  WORKFLOW_RUN_STARTED
+  WORKFLOW_RUN_COMPLETED
+  WORKFLOW_RUN_FAILED
+  USER_ACTION
+}
