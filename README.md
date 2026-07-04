@@ -1,54 +1,159 @@
-# Skill Orchestration
+# Skill Orchestration Workspace
 
-A personal, multi-domain skills library, plus the tooling that serves it to AI coding
-assistants — and the shared-context system that keeps multiple people's AI-assisted work
-on the same project consistent with each other.
+This repository contains a skill library, an MCP server for VS Code and agent context, and a Next.js conductor app for managing skills and workflows.
 
-## Layout
-.
+## What is included
 
-├── skills/                          ← all skill domains (frontend, backend, sre, ...)
+- A shared skill library under skills/
+- An MCP server under skills-mcp-server/
+- A Next.js app under conductor-app/
+- A Python helper entrypoint at main.py
 
-├── skills-mcp-server/                ← MCP server exposing skills as tools
+## Prerequisites
 
-├── skills-vscode-extension/          ← VS Code sidebar for browsing/inserting skills
+Install the following before you start:
 
-├── .vscode/mcp.json                  ← wires the MCP server into VS Code's Copilot Agent mode
+- Git
+- Node.js 18 or newer and npm
+- Python 3.10+ (recommended for helper scripts and tests)
+- A PostgreSQL database or another Prisma-compatible database
 
-├── .github/copilot-instructions.md   ← tells Copilot to read PROJECT_CONTEXT.md first
+## 1. Clone and open in VS Code
 
-├── CLAUDE.md                         ← tells Claude Code to read PROJECT_CONTEXT.md first
+```bash
+git clone <your-repo-url>
+cd skill-orchestration-repo
+code .
+```
 
-└── PROJECT_CONTEXT.md                ← the shared, human-maintained source of truth
+When you open the folder in VS Code, the workspace already includes .vscode/mcp.json, which wires the local MCP server into the editor automatically.
 
-## How this solves "two people, one project, no repeated context"
+## 2. Install dependencies
 
-When you clone this repo, three things travel with it automatically — no setup
-conversation needed with whoever you're working with:
+### Root workspace
 
-1. **`.vscode/mcp.json`** wires up the skills MCP server for you the moment you open the
-   folder in VS Code (uses `${workspaceFolder}`, so it works regardless of where the repo
-   is cloned to, on anyone's machine).
-2. **`.github/copilot-instructions.md`** and **`CLAUDE.md`** both point any AI assistant
-   working in this repo at `PROJECT_CONTEXT.md` first, before anything else.
-3. **`PROJECT_CONTEXT.md`** is the actual shared source of truth: the API contract
-   between frontend and backend, architectural decisions already made, and current
-   status. Both people update it as they work. Neither person re-explains the project
-   to their AI assistant from scratch — it's already loaded, every session, for free.
+```bash
+npm install
+```
 
-## Setup
+### Conductor app
 
-1. **MCP server**: `cd skills-mcp-server && npm install && npm run build`
-2. **VS Code extension** (optional, for manual browsing): `cd skills-vscode-extension && npm install && npm run build`, then F5 or package as a `.vsix`
-3. Open this repo's root folder in VS Code — `.vscode/mcp.json` will wire up automatically
-4. Open Copilot Chat, switch to **Agent mode** — the `skills` server's tools
-   (`list_skills`, `get_skill`) will be available, and Copilot will call them
-   automatically when a request matches a skill's domain
-5. Fill in `PROJECT_CONTEXT.md` for your actual project as you go
+```bash
+cd conductor-app
+npm install
+```
 
-## Adding a new skill
+### Skills MCP server
 
-Create a new folder under `skills/` with a `SKILL.md` (and an optional `references/`
-folder) following the same pattern as the existing skills. No code changes are needed
-anywhere else — the MCP server and the VS Code extension both discover skills by reading
-the `skills/` folder at runtime.
+```bash
+cd ../skills-mcp-server
+npm install
+npm run build
+```
+
+### Python environment (optional but recommended)
+
+On Windows PowerShell:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r ..\requirements.txt
+```
+
+On macOS/Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## 3. Configure environment variables
+
+Create a .env file inside conductor-app and set at least the database connection string:
+
+```env
+DATABASE_URL=postgresql://user:password@localhost:5432/skill_orchestration
+```
+
+If you want email notifications to work, also add your SMTP settings (optional):
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your-user
+SMTP_PASSWORD=your-password
+FROM_EMAIL=noreply@example.com
+```
+
+## 4. Apply the Prisma schema
+
+From conductor-app:
+
+```bash
+npx prisma generate
+npx prisma migrate dev
+```
+
+If you are using a fresh database, this creates the tables used by the conductor app.
+
+## 5. Start the app locally
+
+Open a terminal for the conductor app:
+
+```bash
+cd conductor-app
+npm run dev
+```
+
+Open another terminal for the main workspace app if needed:
+
+```bash
+cd ..
+npm run dev
+```
+
+The main UI and the conductor app will be available on the local development ports used by Next.js.
+
+## 6. Connect the VS Code MCP server
+
+The repository already contains the MCP settings in .vscode/mcp.json. After opening the repo in VS Code:
+
+1. Make sure the workspace opens at the repository root.
+2. Run the command palette command: Developer: Reload Window.
+3. Confirm that the skills MCP server is available to the editor.
+
+If the server is not picked up, verify that:
+
+- Node.js is installed and available in your PATH
+- skills-mcp-server/ has been built with npm run build
+- The path in .vscode/mcp.json points to the correct workspace folder
+
+## 7. Useful commands
+
+- Build the conductor app:
+
+```bash
+cd conductor-app
+npm run build
+```
+
+- Run tests (Python):
+
+```bash
+pytest
+```
+
+- Open Prisma Studio:
+
+```bash
+cd conductor-app
+npx prisma studio
+```
+
+## Troubleshooting
+
+- If you see DATABASE_URL is required, create the .env file in conductor-app and set DATABASE_URL.
+- If the MCP server does not appear in VS Code, reload the window and confirm that .vscode/mcp.json is present.
+- If dependencies are missing, run npm install again in the relevant folder.

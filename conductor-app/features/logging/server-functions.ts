@@ -1,12 +1,11 @@
 "use server";
 
-import { PrismaClient } from "@prisma/client";
+import { db } from "../../lib/db";
 import { AuditLogService } from "./auditLog.service";
-import { NotificationService, initializeNotificationService } from "./notification.service";
+import { initializeNotificationService } from "./notification.service";
 
-const prisma = new PrismaClient();
-const auditLogService = new AuditLogService(prisma);
-const notificationService = initializeNotificationService(prisma);
+const auditLogService = new AuditLogService(db);
+const notificationService = initializeNotificationService(db);
 
 /**
  * Get audit logs with optional filtering

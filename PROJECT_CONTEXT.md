@@ -8,60 +8,43 @@
 
 ## What this project is
 
-<!-- One paragraph: what is being built and why. If a business case or BRD exists for
-this initiative (see the business-analysis skill), link or summarize it here. -->
+This workspace contains a simple marketing-style frontend for XYZ Company and a new backend layer built with FastAPI and Python to serve its content over a structured API. The goal is to keep the site easy to maintain while moving page content out of the static client into a backend contract that can evolve independently.
 
 ## Architecture summary
 
-<!-- A few sentences + a link to any C4 diagrams or ADRs (see the system-architecture
-skill's adr-and-c4 reference) — not a duplicate of those, just enough that someone
-opening this file gets oriented without having to go read every ADR individually. -->
+The frontend remains a lightweight static experience served from the repository, while the backend exposes a JSON API for page content and optionally serves the HTML shell. The current implementation uses FastAPI with Uvicorn, a single-module app, and a simple in-memory content model for the four site routes.
 
-- **Frontend stack**: <!-- e.g. React + Next.js + TypeScript -->
-- **Backend stack**: <!-- e.g. Node.js + Fastify + Postgres -->
-- **Hosting / deployment**: <!-- e.g. Vercel + Railway -->
+- **Frontend stack**: Static HTML, CSS, and vanilla JavaScript
+- **Backend stack**: FastAPI with Python and Uvicorn
+- **Hosting / deployment**: Local development server for now; suitable for containerized deployment later
 
 ## The API contract
 
-> This is the part that matters most for keeping two people's work compatible without
-> re-explaining it to each other every session. Keep this current — when the contract
-> changes, update this section in the *same* commit/PR that changes the code, not after.
-
-<!-- Either summarize the contract directly here, or link to the actual source of truth
-(an OpenAPI spec, a shared types file) and describe it in plain language. Example: -->
+The frontend now consumes a single backend endpoint that returns the site routes as structured content blocks.
 
 | Endpoint | Method | Request | Response | Notes |
 |---|---|---|---|---|
-| `/api/orders` | `POST` | `{ items: OrderItem[] }` | `{ orderId: string, status: OrderStatus }` | `OrderStatus` is one of `pending`, `confirmed`, `failed` |
+| `/api/site` | `GET` | none | `{ site: string, routes: { [routeName]: { title, description, content } } }` | Each `content` entry is either a paragraph, card grid, or list block |
 
 ## Decisions log
 
-> Lightweight, append-only. For a significant architectural decision, write a full ADR
-> instead (see the `system-architecture` skill) and just link it here. For a smaller
-> decision that doesn't need a full ADR, a one-line entry here is enough — the point is
-> that "why did we do it this way" should never require asking a person who might be
-> unavailable, or might just not remember anymore.
-
 | Date | Decision | Why |
 |---|---|---|
-| <!-- 2026-06-29 --> | <!-- Use Zustand instead of Redux for client state --> | <!-- App is small enough that Redux's boilerplate wasn't justified yet --> |
+| 2026-07-02 | Use FastAPI for the backend and keep the frontend static | A small API is enough for the current site and keeps the project simple while making content delivery more maintainable |
+| 2026-07-02 | Return structured content blocks instead of pre-rendered HTML | This keeps the backend contract explicit and makes the frontend render logic reusable |
 
 ## Current status
 
-> Update this section regularly — this is what answers "what's actually going on right
-> now" without anyone needing to ask in chat or re-explain it to an AI assistant.
-
 | Area | Owner | Status | Notes |
 |---|---|---|---|
-| Frontend | <!-- Person A --> | <!-- in progress / blocked / done --> | <!-- what's currently being worked on, what's blocking, if anything --> |
-| Backend | <!-- Person B --> | <!-- in progress / blocked / done --> | <!-- same --> |
+| Frontend | AI assistant | done | Static site now loads page content from the FastAPI backend with local fallback |
+| Backend | AI assistant | done | FastAPI app exposes `/api/site` and serves the frontend shell from `/` |
 
 ## Open questions / blockers
 
-<!-- Anything currently unresolved that affects both sides — e.g. "auth strategy not
-finalized yet, frontend login form is stubbed pending that decision." This is exactly
-the kind of thing that otherwise gets lost between two people's separate AI sessions. -->
+- The current backend uses in-memory content; persistence and admin editing can be added later if the site grows.
+- Authentication is not yet part of the design because the current site has no user accounts or protected content.
 
 ---
 
-*Last updated: <!-- date --> by <!-- who -->*
+*Last updated: 2026-07-02 by AI assistant*

@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../../lib/generated/prisma/client";
 import { notificationService } from "./notification.service";
 
 export interface AuditLogEntry {
