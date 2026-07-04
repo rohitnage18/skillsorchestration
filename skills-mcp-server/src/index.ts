@@ -3,36 +3,34 @@
 /**
  * Skills MCP Server
  *
- * Exposes a local library of domain-specific SKILL.md files (frontend, backend,
- * sre, business-analysis, etc.) to any MCP-compatible client — Claude Code,
- * Cursor, Claude Desktop, or a custom integration.
- *
  * Tools:
- *   - list_skills: lists every available skill, its description, and which
- *     reference files it has.
- *   - get_skill: returns the full content of one skill (its SKILL.md router
- *     plus every file in its references/ folder, concatenated and clearly
- *     delimited).
+ *   - list_skills: lists every available skill
+ *   - get_skill: returns full content of one skill
+ *   - read_context: reads CONTEXT.md from the active project (PROJECT_PATH)
+ *   - update_context: rewrites sections + appends changelog entry
  *
- * The skills themselves live on disk, outside this package, at the path given
- * by the SKILLS_PATH environment variable. This is deliberate: adding a new
- * skill, or editing an existing one, never requires rebuilding or republishing
- * this server — it just needs the files to exist at SKILLS_PATH the next time
- * a tool is called.
+ * Env vars:
+ *   SKILLS_PATH  — required — path to skills/ folder
+ *   PROJECT_PATH — optional — path to active project root
  *
- * IMPORTANT: this server speaks MCP over stdio. Never write to stdout outside
- * the SDK's own protocol messages — that would corrupt the JSON-RPC stream.
- * All logging in this file deliberately uses console.error (stderr) for
- * exactly this reason.
+ * IMPORTANT: never write to stdout — it corrupts the JSON-RPC stream.
+ * Use console.error (stderr) for all logging.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { listSkills, getSkill, SkillNotFoundError } from "./skills.js";
+import {
+  readContext,
+  updateContext,
+  requireProjectPath,
+  ProjectPathNotConfiguredError,
+  ContextFileNotFoundError,
+} from "./context.js";
 
 const SERVER_NAME = "skills-mcp-server";
-const SERVER_VERSION = "1.0.0";
+const SERVER_VERSION = "1.1.0";
 
 async function main(): Promise<void> {
   const skillsPath = process.env.SKILLS_PATH;
@@ -50,6 +48,8 @@ async function main(): Promise<void> {
     version: SERVER_VERSION,
   });
 
+  // ── Skill library tools ────────────────────────────────────────────────────
+
   server.registerTool(
     "list_skills",
     {
@@ -65,12 +65,7 @@ async function main(): Promise<void> {
       try {
         const skills = await listSkills(skillsPath);
         return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(skills, null, 2),
-            },
-          ],
+          content: [{ type: "text", text: JSON.stringify(skills, null, 2) }],
         };
       } catch (err) {
         return errorResult(err);
@@ -98,11 +93,84 @@ async function main(): Promise<void> {
     async ({ name }) => {
       try {
         const content = await getSkill(skillsPath, name);
+        return { content: [{ type: "text", text: content }] };
+      } catch (err) {
+        return errorResult(err);
+      }
+    }
+  );
+
+  // ── Project context tools ──────────────────────────────────────────────────
+
+  server.registerTool(
+    "read_context",
+    {
+      title: "Read project context",
+      description:
+        "Reads the CONTEXT.md file from the active project folder (set via the " +
+        "PROJECT_PATH environment variable in your MCP config). Returns the full " +
+        "content of CONTEXT.md — the shared source of truth for the project's " +
+        "current architecture, API contract, decisions, status, and history. " +
+        "ALWAYS call this at the start of every session and before starting any task " +
+        "in a project. Do not rely on conversation history instead of calling this — " +
+        "another team member may have updated CONTEXT.md since your last session.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const projectPath = requireProjectPath();
+        const content = await readContext(projectPath);
+        return { content: [{ type: "text", text: content }] };
+      } catch (err) {
+        return errorResult(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "update_context",
+    {
+      title: "Update project context",
+      description:
+        "Updates CONTEXT.md in the active project folder. Does two things in one call: " +
+        "(1) rewrites the named current-state sections you provide with fresh content, " +
+        "and (2) appends a timestamped changelog entry recording what changed and why. " +
+        "ALWAYS call this after completing any task that changes something meaningful " +
+        "about the project — a new decision, a changed API contract, a shift in status, " +
+        "a resolved blocker. You do not need to provide every section — only the ones " +
+        "that actually changed. The changelog entry should be a plain-language summary " +
+        "of what was done and any key decisions made.",
+      inputSchema: {
+        sections: z
+          .record(z.string(), z.string())
+          .describe(
+            "An object mapping section names to their new content. " +
+            "Section names must match the ## headings in CONTEXT.md exactly " +
+            "(e.g. 'Stack', 'API contract', 'Current status', 'Open questions / blockers', " +
+            "'Decisions log'). Only include sections that actually changed."
+          ),
+        changelog_entry: z
+          .string()
+          .min(10)
+          .describe(
+            "A plain-language description of what was done in this task and any " +
+            "key decisions made. Will be timestamped and appended to the ## Changelog " +
+            "section. Be specific enough that a teammate reading it later would know " +
+            "what changed and why, without needing to read all the code."
+          ),
+      },
+    },
+    async ({ sections, changelog_entry }) => {
+      try {
+        const projectPath = requireProjectPath();
+        await updateContext(projectPath, sections, changelog_entry);
         return {
           content: [
             {
               type: "text",
-              text: content,
+              text: `CONTEXT.md updated successfully in "${projectPath}". ` +
+                    `Sections rewritten: ${Object.keys(sections).join(", ") || "none"}. ` +
+                    `Changelog entry appended.`,
             },
           ],
         };
@@ -115,16 +183,22 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  console.error(`[${SERVER_NAME}] running on stdio, serving skills from ${skillsPath}`);
+  const projectPath = process.env.PROJECT_PATH;
+  console.error(
+    `[${SERVER_NAME}] v${SERVER_VERSION} running on stdio. ` +
+      `Skills: ${skillsPath} | Project: ${projectPath ?? "(not set — read_context/update_context unavailable)"}`
+  );
 }
 
-/** Converts a thrown error into a well-formed MCP tool error result rather than crashing the server. */
+/** Converts a thrown error into a well-formed MCP tool error result. */
 function errorResult(err: unknown): {
   content: { type: "text"; text: string }[];
   isError: true;
 } {
   const message =
-    err instanceof SkillNotFoundError
+    err instanceof SkillNotFoundError ||
+    err instanceof ProjectPathNotConfiguredError ||
+    err instanceof ContextFileNotFoundError
       ? err.message
       : err instanceof Error
         ? `Unexpected error: ${err.message}`

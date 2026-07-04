@@ -4,7 +4,7 @@ import {
   getAuditStats,
   logAction,
   purgeOldAuditLogs,
-} from "@/features/logging/server-functions";
+} from "../../../features/logging/server-functions";
 
 /**
  * GET /api/audit-logs

@@ -1,4 +1,4 @@
-import { PrismaClient, NotificationType, AuditLog } from "@prisma/client";
+import { PrismaClient, NotificationType, AuditLog } from "../../lib/generated/prisma/client";
 
 export interface EmailConfig {
   smtpHost: string;

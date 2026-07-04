@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Conductor Studio</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <span class="brand-mark">C</span>
+          <div>
+            <p class="brand-eyebrow">Conductor</p>
+            <h1>Studio</h1>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Skills</h2>
+              <p class="panel-subtitle">Search and select a skill to inspect.</p>
+            </div>
+            <button id="reloadButton" class="button button-secondary">Reload</button>
+          </div>
+          <input id="searchInput" class="search-input" placeholder="Filter skills..." aria-label="Filter skills" />
+          <ul id="skillsList" class="skill-list"></ul>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Files</h2>
+          </div>
+          <ul id="fileList" class="file-list"></ul>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <section class="toolbar">
+          <div class="toolbar-buttons">
+            <button id="newSkillButton" class="button button-primary">New Skill</button>
+            <button id="saveButton" class="button button-primary" disabled>Save File</button>
+            <button id="previewButton" class="button button-secondary" disabled>Preview Skill</button>
+            <button id="importButton" class="button button-secondary" disabled>Import Skill</button>
+          </div>
+          <p class="toolbar-note">Save edits directly to the skill, or import the skill into a local workspace copy.</p>
+        </section>
+        <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+        <section class="editor-pane">
+          <div class="editor-header">
+            <div>
+              <h2 id="editorTitle">No skill selected</h2>
+              <p id="editorSubtitle">Select a skill to begin.</p>
+            </div>
+            <div id="statusMessage" class="status-message"></div>
+          </div>
+          <div class="editor-content">
+            <textarea id="editorTextarea" readonly></textarea>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
