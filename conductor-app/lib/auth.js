@@ -1,11 +1,21 @@
 import { db } from "./db";
+import { auth } from "../auth.js";
 
-export function getRequestUserId(headers) {
-  return headers.get("x-user-id")?.trim() || "";
+export async function getRequestUserId(headers) {
+  const session = await auth();
+  if (session?.user?.id) {
+    return session.user.id;
+  }
+
+  if (process.env.ALLOW_HEADER_AUTH === "true") {
+    return headers.get("x-user-id")?.trim() || "";
+  }
+
+  return "";
 }
 
 export async function getRequestUser(headers) {
-  const userId = getRequestUserId(headers);
+  const userId = await getRequestUserId(headers);
   if (!userId) {
     return null;
   }

@@ -95,6 +95,11 @@
           "default": "",
           "description": "Optional user email sent to the conductor app in skill event headers."
         },
+        "skillsLibrary.userName": {
+          "type": "string",
+          "default": "",
+          "description": "Optional user display name saved in the conductor app when skill events are reported."
+        },
         "skillsLibrary.eventToken": {
           "type": "string",
           "default": "",

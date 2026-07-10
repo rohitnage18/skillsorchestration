@@ -35,16 +35,19 @@ export async function POST(req: Request) {
 
     const userId = req.headers.get("x-user-id")?.trim() || "dev-user";
     const userEmail = req.headers.get("x-user-email")?.trim() || `${userId}@local.conductor`;
+    const userName = req.headers.get("x-user-name")?.trim() || undefined;
     const input = skillEventSchema.parse(await req.json());
 
     await db.user.upsert({
       where: { id: userId },
       update: {
         email: userEmail,
+        ...(userName ? { name: userName } : {}),
       },
       create: {
         id: userId,
         email: userEmail,
+        name: userName,
       },
     });
 

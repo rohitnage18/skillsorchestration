@@ -11,7 +11,7 @@ export async function POST(req: Request, context: RouteContext) {
   try {
     const { workflowId } = await context.params;
     const { input } = executeWorkflowSchema.parse(await req.json());
-    return jsonResponse(await executeWorkflow(getOwnerId(req.headers), workflowId, input));
+    return jsonResponse(await executeWorkflow(await getOwnerId(req.headers), workflowId, input));
   } catch (error) {
     return errorResponse(error, "Unable to execute workflow.", 400);
   }

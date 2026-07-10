@@ -70,7 +70,7 @@ export class NotificationService {
         )
       );
 
-      if (!this.emailConfig) {
+      if (!this.emailConfig || this.shouldSkipEmail(auditLog.action)) {
         return;
       }
 
@@ -193,6 +193,10 @@ export class NotificationService {
       "workflow:run:fail": "WORKFLOW_RUN_FAILED",
     };
     return typeMap[action] || "USER_ACTION";
+  }
+
+  private shouldSkipEmail(action: string): boolean {
+    return action === "skill:list";
   }
 
   private getNotificationTitle(action: string): string {

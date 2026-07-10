@@ -58,6 +58,10 @@ function getConfiguredUserEmail(userId: string): string {
   );
 }
 
+function getConfiguredUserName(): string {
+  return vscode.workspace.getConfiguration("skillsLibrary").get<string>("userName", "").trim();
+}
+
 function getEventToken(): string {
   return vscode.workspace.getConfiguration("skillsLibrary").get<string>("eventToken", "").trim();
 }
@@ -129,11 +133,15 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     const userId = getConfiguredUserId();
+    const userName = getConfiguredUserName();
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "x-user-id": userId,
       "x-user-email": getConfiguredUserEmail(userId),
     };
+    if (userName) {
+      headers["x-user-name"] = userName;
+    }
     const token = getEventToken();
     if (token) {
       headers.authorization = `Bearer ${token}`;

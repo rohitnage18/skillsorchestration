@@ -5,7 +5,7 @@ import {
   clearOldNotifications,
 } from "../../../features/logging/server-functions";
 import { db } from "../../../lib/db";
-import { getErrorStatus, requireAdmin } from "../../../lib/auth.js";
+import { getErrorStatus, getRequestUser, requireAdmin } from "../../../lib/auth.js";
 
 /**
  * GET /api/notifications
@@ -14,8 +14,8 @@ import { getErrorStatus, requireAdmin } from "../../../lib/auth.js";
  */
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id");
-    if (!userId) {
+    const user = await getRequestUser(request.headers);
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    const result = await getNotifications(userId, {
+    const result = await getNotifications(user.id, {
       read,
       type: type as any,
       limit,
@@ -57,8 +57,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id");
-    if (!userId) {
+    const user = await getRequestUser(request.headers);
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     const notification = await db.notification.findFirst({
       where: {
         id: notificationId,
-        userId,
+        userId: user.id,
       },
     });
 

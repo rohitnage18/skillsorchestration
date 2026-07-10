@@ -9,10 +9,11 @@ type RouteContext = {
 export async function GET(req: Request, context: RouteContext) {
   try {
     const { runId } = await context.params;
+    const ownerId = await getOwnerId(req.headers);
     const run = await db.workflowRun.findFirst({
       where: {
         id: runId,
-        userId: getOwnerId(req.headers),
+        userId: ownerId,
       },
       include: { nodeRuns: true },
     });

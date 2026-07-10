@@ -235,6 +235,7 @@ async function reportSkillEvent(conductorUrl: string, event: SkillEventInput): P
   const userEmail =
     (process.env.MCP_USER_EMAIL ?? "").trim() ||
     (userId.includes("@") ? userId : `${userId}@local.conductor`);
+  const userName = (process.env.MCP_USER_NAME ?? "").trim();
   const token = (process.env.SKILL_EVENTS_TOKEN ?? "").trim();
 
   const headers: Record<string, string> = {
@@ -242,6 +243,10 @@ async function reportSkillEvent(conductorUrl: string, event: SkillEventInput): P
     "x-user-id": userId,
     "x-user-email": userEmail,
   };
+
+  if (userName) {
+    headers["x-user-name"] = userName;
+  }
 
   if (token) {
     headers.authorization = `Bearer ${token}`;

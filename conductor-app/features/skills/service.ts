@@ -3,6 +3,7 @@ import { Prisma } from "../../lib/generated/prisma/client";
 import { CreateSkillInput, UpdateSkillInput } from "./schemas";
 import { runServerFunctionSkill } from "./server-functions";
 import { logAction } from "../logging/server-functions";
+import { getRequestUserId } from "../../lib/auth.js";
 
 const DEFAULT_OWNER_ID = "dev-user";
 const DEFAULT_OWNER_EMAIL = "dev-user@local.conductor";
@@ -15,8 +16,8 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export function getOwnerId(headers: Headers) {
-  return headers.get("x-user-id")?.trim() || DEFAULT_OWNER_ID;
+export async function getOwnerId(headers: Headers) {
+  return (await getRequestUserId(headers)) || DEFAULT_OWNER_ID;
 }
 
 async function ensureUser(ownerId: string) {

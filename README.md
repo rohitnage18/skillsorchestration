@@ -19,6 +19,8 @@ The intended flow is:
 
 | Path | Purpose |
 |---|---|
+| `admin/` | Admin setup guide and environment template for running the conductor app, DB, SMTP, user management, and audit review. |
+| `users/` | User setup guide plus MCP/VS Code config examples for consuming skills and reporting usage. |
 | `skills/` | Source skill library. Each skill folder contains `SKILL.md` and optional `references/*.md`. |
 | `skills-mcp-server/` | MCP server that exposes skills and context tools to coding agents. |
 | `skills-vscode-extension/` | VS Code sidebar extension for browsing, previewing, inserting, and reporting skill activity. |
@@ -29,6 +31,14 @@ The intended flow is:
 | `CONTEXT.md` | Root project context used by MCP agents in this workspace. |
 | `PROJECT_CONTEXT.md` | Human/project architecture context for this repository. |
 | `.vscode/mcp.json` | VS Code MCP config for the local skills server. |
+
+## Admin Vs User Setup
+
+- Admins should start with `admin/README.md`.
+- Normal users should start with `users/README.md`.
+- Shared source code stays in `conductor-app/`, `skills/`, `skills-mcp-server/`, and `skills-vscode-extension/` so paths do not break.
+- Users do not need admin SMTP secrets or direct DB access.
+- Users enter their own id/name/email in MCP or VS Code config; their first skill event saves them to the conductor database.
 
 ## Current Architecture
 
