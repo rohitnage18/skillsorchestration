@@ -163,10 +163,20 @@ export async function executeRegistrySkill(ownerId: string, skillId: string, inp
       throw new Error("Skill is missing functionKey.");
     }
 
-    return {
+    const result = {
       skillId: skill.id,
       output: await runServerFunctionSkill(skill.functionKey, input),
     };
+
+    await logAction({
+      userId: ownerId,
+      action: "skill:execute",
+      resource: "skill",
+      resourceId: skill.id,
+      metadata: { ownerId, skillName: skill.name, source: "registry" },
+    });
+
+    return result;
   }
 
   if (!skill.endpointUrl) {
@@ -189,8 +199,18 @@ export async function executeRegistrySkill(ownerId: string, skillId: string, inp
     throw new Error(`Skill endpoint failed with ${response.status}: ${text}`);
   }
 
-  return {
+  const result = {
     skillId: skill.id,
     output,
   };
+
+  await logAction({
+    userId: ownerId,
+    action: "skill:execute",
+    resource: "skill",
+    resourceId: skill.id,
+    metadata: { ownerId, skillName: skill.name, source: "registry" },
+  });
+
+  return result;
 }

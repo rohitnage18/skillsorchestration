@@ -1,50 +1,88 @@
 # Project Context
 
-> **Read this file first.** This is the single shared source of truth for this project —
-> its architecture, the contract between frontend and backend, decisions already made,
-> and current status. Update it as you work; don't let it go stale. Any AI assistant
-> working in this repo (Copilot, Claude Code, Cursor) is instructed to read this file
-> automatically — see `.github/copilot-instructions.md` and `CLAUDE.md`.
+> Read this file first. It is the shared source of truth for the skill orchestration workspace.
 
-## What this project is
+## What This Project Is
 
-This workspace contains a simple marketing-style frontend for XYZ Company and a new backend layer built with FastAPI and Python to serve its content over a structured API. The goal is to keep the site easy to maintain while moving page content out of the static client into a backend contract that can evolve independently.
+This repository is a skill orchestration workspace. It lets users maintain reusable `SKILL.md` files with reference material, expose those skills to coding agents, track project context through `CONTEXT.md`, and notify admins when skills are created, imported, used, or edited.
 
-## Architecture summary
+## Architecture Summary
 
-The frontend remains a lightweight static experience served from the repository, while the backend exposes a JSON API for page content and optionally serves the HTML shell. The current implementation uses FastAPI with Uvicorn, a single-module app, and a simple in-memory content model for the four site routes.
+- `skills/` is the source skill library. Each skill folder contains `SKILL.md` and optional `references/*.md`.
+- `skills-mcp-server/` exposes skills and project context tools to MCP-compatible agents.
+- `skills-vscode-extension/` provides a VS Code sidebar for previewing/inserting skills and reporting skill events.
+- `conductor-app/` is the control plane for APIs, audit logging, in-app notifications, SMTP email, registry skills, and workflows.
+- Imported projects under `conductor-app/imported-workspaces/` receive their own `CONTEXT.md` file.
 
-- **Frontend stack**: Static HTML, CSS, and vanilla JavaScript
-- **Backend stack**: FastAPI with Python and Uvicorn
-- **Hosting / deployment**: Local development server for now; suitable for containerized deployment later
+## Agent Workflow
 
-## The API contract
+1. User gives a prompt to an agent such as Codex, Copilot, Claude, or another MCP-compatible assistant.
+2. Agent reads the project `CONTEXT.md` before taking action.
+3. Agent selects relevant skill files from `skills/`.
+4. Agent reads the selected `SKILL.md` and required `references/*.md`.
+5. Agent initializes or modifies the target project/model.
+6. Agent updates `CONTEXT.md` after meaningful work.
+7. Conductor logs skill activity and notifies admin users.
 
-The frontend now consumes a single backend endpoint that returns the site routes as structured content blocks.
+## Event And Notification Contract
 
-| Endpoint | Method | Request | Response | Notes |
-|---|---|---|---|---|
-| `/api/site` | `GET` | none | `{ site: string, routes: { [routeName]: { title, description, content } } }` | Each `content` entry is either a paragraph, card grid, or list block |
+`conductor-app` accepts external skill events at `POST /api/skill-events`.
 
-## Decisions log
+Supported events:
+
+- `skill:create`
+- `skill:import`
+- `skill:preview`
+- `skill:use`
+- `skill:test`
+- `skill:execute`
+- `skill:file:update`
+
+Each event creates an audit log and admin notification. If SMTP is configured, admin users also receive email.
+
+## Decisions Log
 
 | Date | Decision | Why |
 |---|---|---|
-| 2026-07-02 | Use FastAPI for the backend and keep the frontend static | A small API is enough for the current site and keeps the project simple while making content delivery more maintainable |
-| 2026-07-02 | Return structured content blocks instead of pre-rendered HTML | This keeps the backend contract explicit and makes the frontend render logic reusable |
+| 2026-07-09 | Keep `conductor-app` as the control plane | Admin notifications, audit logs, event APIs, and future approval workflows need a central backend |
+| 2026-07-09 | Use DB admin users as email recipients | Keeps notification recipients tied to app roles instead of a separate `ADMIN_EMAIL` list |
+| 2026-07-09 | Add `POST /api/skill-events` for VS Code/external reporting | Agents and editor integrations need a small stable event contract |
+| 2026-07-09 | Defer strict write-prevention guardrails | The immediate requirement is visibility and admin notification; enforcement can be layered later |
+| 2026-07-09 | Point VS Code MCP `PROJECT_PATH` at the workspace | This enables `read_context` and `update_context` immediately for agents opened in this repo |
+| 2026-07-09 | Remove root-level notification templates | `conductor-app` is the single notification control plane and Prisma `Notification` is the source of truth |
 
-## Current status
+## Current Status
 
-| Area | Owner | Status | Notes |
-|---|---|---|---|
-| Frontend | AI assistant | done | Static site now loads page content from the FastAPI backend with local fallback |
-| Backend | AI assistant | done | FastAPI app exposes `/api/site` and serves the frontend shell from `/` |
+| Area | Status | Notes |
+|---|---|---|
+| Skill library | working | Skills and reference files exist under `skills/` |
+| MCP server | working | Exposes skill listing, skill retrieval, and context tools |
+| VS Code extension | updated | Reports preview/use/file-update events when `skillsLibrary.conductorUrl` is configured |
+| Conductor app | updated | Logs create/import/edit/test/execute events and sends admin email via SMTP |
+| Documentation | updated | `README.md` now contains the detailed architecture, setup, event flow, admin protection, and troubleshooting guide |
+| Context flow | partial | MCP tools support reading/updating `CONTEXT.md`; strict before/after enforcement is not implemented yet |
+| Security/guardrails | partial | Skill create/import/edit and admin cleanup routes require an admin database user; full auth and approval workflows are later-phase work |
 
-## Open questions / blockers
+## Open Questions / Blockers
 
-- The current backend uses in-memory content; persistence and admin editing can be added later if the site grows.
-- Authentication is not yet part of the design because the current site has no user accounts or protected content.
+- Decide the real authentication/session source that replaces temporary `x-user-id`, browser `localStorage`, and `dev-user` fallback behavior.
+- Decide whether preview/read events are too noisy for admin email in production.
+- Decide whether strict admin approval should block edits, or just notify admins after edits.
 
----
+## Changelog
 
-*Last updated: 2026-07-02 by AI assistant*
+### 2026-07-09
+
+Implemented the first orchestration slice: real SMTP admin email, shared skill activity logging, conductor event API, filesystem skill create/import/edit/test logging, registry execution logging, and VS Code preview/use/file-update event reporting.
+
+### 2026-07-09
+
+Added root `CONTEXT.md` and updated `.vscode/mcp.json` with `PROJECT_PATH=${workspaceFolder}` so agents can read/update project context through MCP by default.
+
+### 2026-07-09
+
+Added basic admin guardrails: filesystem skill create/import/edit routes, audit log admin routes, and destructive notification cleanup now require an admin database user. Notification mark-read now verifies ownership.
+
+### 2026-07-09
+
+Removed stale root-level notification template files and expanded `README.md` into the detailed operator/developer guide for the skill orchestration system.

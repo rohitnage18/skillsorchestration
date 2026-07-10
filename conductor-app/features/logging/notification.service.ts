@@ -1,8 +1,10 @@
-import { PrismaClient, NotificationType, AuditLog } from "../../lib/generated/prisma/client";
+import nodemailer from "nodemailer";
+import { AuditLog, NotificationType, PrismaClient } from "../../lib/generated/prisma/client";
 
 export interface EmailConfig {
   smtpHost: string;
   smtpPort: number;
+  smtpSecure: boolean;
   smtpUser: string;
   smtpPassword: string;
   fromEmail: string;
@@ -16,17 +18,16 @@ export class NotificationService {
   }
 
   private initializeEmailConfig() {
-    // Email configuration from environment variables
     if (
       process.env.SMTP_HOST &&
-      process.env.SMTP_PORT &&
       process.env.SMTP_USER &&
       process.env.SMTP_PASSWORD &&
       process.env.FROM_EMAIL
     ) {
       this.emailConfig = {
         smtpHost: process.env.SMTP_HOST,
-        smtpPort: parseInt(process.env.SMTP_PORT),
+        smtpPort: Number(process.env.SMTP_PORT ?? 587),
+        smtpSecure: process.env.SMTP_SECURE === "true",
         smtpUser: process.env.SMTP_USER,
         smtpPassword: process.env.SMTP_PASSWORD,
         fromEmail: process.env.FROM_EMAIL,
@@ -34,27 +35,22 @@ export class NotificationService {
     }
   }
 
-  /**
-   * Notify admins about an audit log entry
-   */
   async notifyAdmins(auditLog: AuditLog) {
     try {
-      // Get all admin users
       const admins = await this.prisma.user.findMany({
         where: { role: "ADMIN" },
       });
 
-      if (admins.length === 0) return;
+      if (admins.length === 0) {
+        return;
+      }
 
-      // Map action to notification type
       const notificationType = this.mapActionToNotificationType(auditLog.action);
-
-      // Get user who performed the action
       const actor = await this.prisma.user.findUnique({
         where: { id: auditLog.userId },
       });
+      const actorName = actor?.name || actor?.email || auditLog.userId;
 
-      // Create notification for each admin
       const notifications = await Promise.all(
         admins.map((admin) =>
           this.prisma.notification.create({
@@ -63,7 +59,7 @@ export class NotificationService {
               title: this.getNotificationTitle(auditLog.action),
               message: this.getNotificationMessage(
                 auditLog.action,
-                actor?.name || "Unknown",
+                actorName,
                 auditLog.resource,
                 auditLog.resourceId
               ),
@@ -74,81 +70,60 @@ export class NotificationService {
         )
       );
 
-      // Send emails
-      if (this.emailConfig) {
-        await Promise.all(
-          admins.map((admin) =>
-            this.sendEmail(
+      if (!this.emailConfig) {
+        return;
+      }
+
+      await Promise.all(
+        admins.map(async (admin) => {
+          const notification = notifications.find((item) => item.userId === admin.id);
+          try {
+            await this.sendEmail(
               admin.email,
               this.getNotificationTitle(auditLog.action),
-              this.getEmailBody(auditLog, actor?.name || "Unknown")
-            ).catch((error) =>
-              console.error(`Failed to send email to ${admin.email}:`, error)
-            )
-          )
-        );
+              this.getEmailBody(auditLog, actorName)
+            );
 
-        // Mark emails as sent
-        await this.prisma.notification.updateMany({
-          where: { id: { in: notifications.map((n) => n.id) } },
-          data: { emailSent: true, sentAt: new Date() },
-        });
-      }
+            if (notification) {
+              await this.prisma.notification.update({
+                where: { id: notification.id },
+                data: { emailSent: true, sentAt: new Date() },
+              });
+            }
+          } catch (error) {
+            console.error(`Failed to send email to ${admin.email}:`, error);
+          }
+        })
+      );
     } catch (error) {
       console.error("Failed to notify admins:", error);
     }
   }
 
-  /**
-   * Send email notification
-   */
-  private async sendEmail(
-    to: string,
-    subject: string,
-    body: string
-  ): Promise<void> {
+  private async sendEmail(to: string, subject: string, body: string): Promise<void> {
     if (!this.emailConfig) {
-      console.warn("Email config not initialized, skipping email send");
       return;
     }
 
-    // Use nodemailer or similar library to send email
-    // This is a placeholder - implement with your preferred email service
-    try {
-      // Example using a hypothetical email service
-      // In production, use nodemailer, SendGrid, AWS SES, etc.
-      console.log(`[EMAIL] To: ${to}`);
-      console.log(`[EMAIL] Subject: ${subject}`);
-      console.log(`[EMAIL] Body: ${body}`);
+    const transporter = nodemailer.createTransport({
+      host: this.emailConfig.smtpHost,
+      port: this.emailConfig.smtpPort,
+      secure: this.emailConfig.smtpSecure,
+      auth: {
+        user: this.emailConfig.smtpUser,
+        pass: this.emailConfig.smtpPassword,
+      },
+    });
 
-      // For now, just log it - actual implementation depends on your email provider
-      // Example with nodemailer:
-      /*
-      const transporter = nodemailer.createTransport({
-        host: this.emailConfig.smtpHost,
-        port: this.emailConfig.smtpPort,
-        auth: {
-          user: this.emailConfig.smtpUser,
-          pass: this.emailConfig.smtpPassword,
-        },
-      });
-
-      await transporter.sendMail({
-        from: this.emailConfig.fromEmail,
-        to,
-        subject,
-        html: body,
-      });
-      */
-    } catch (error) {
-      console.error("Email send failed:", error);
-      throw error;
-    }
+    await transporter.sendMail({
+      from: this.emailConfig.fromEmail,
+      to,
+      subject,
+      html: body,
+      text: stripHtml(body),
+    });
   }
 
-  /**
-   * Get notifications for a user
-   */
   async getNotifications(
     userId: string,
     filters?: {
@@ -172,9 +147,6 @@ export class NotificationService {
     });
   }
 
-  /**
-   * Mark notification as read
-   */
   async markAsRead(notificationId: string) {
     return this.prisma.notification.update({
       where: { id: notificationId },
@@ -182,18 +154,12 @@ export class NotificationService {
     });
   }
 
-  /**
-   * Get unread notification count for a user
-   */
   async getUnreadCount(userId: string): Promise<number> {
     return this.prisma.notification.count({
       where: { userId, read: false },
     });
   }
 
-  /**
-   * Clear old notifications
-   */
   async clearOldNotifications(olderThanDays: number) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
@@ -206,12 +172,19 @@ export class NotificationService {
     });
   }
 
-  // Helper methods
   private mapActionToNotificationType(action: string): NotificationType {
     const typeMap: Record<string, NotificationType> = {
+      "skill:list": "USER_ACTION",
+      "skill:read": "USER_ACTION",
       "skill:create": "SKILL_CREATED",
       "skill:update": "SKILL_UPDATED",
       "skill:delete": "SKILL_DELETED",
+      "skill:import": "USER_ACTION",
+      "skill:preview": "USER_ACTION",
+      "skill:use": "USER_ACTION",
+      "skill:test": "USER_ACTION",
+      "skill:execute": "USER_ACTION",
+      "skill:file:update": "USER_ACTION",
       "workflow:create": "WORKFLOW_CREATED",
       "workflow:update": "WORKFLOW_UPDATED",
       "workflow:delete": "WORKFLOW_DELETED",
@@ -224,9 +197,17 @@ export class NotificationService {
 
   private getNotificationTitle(action: string): string {
     const titleMap: Record<string, string> = {
+      "skill:list": "Skills Listed",
+      "skill:read": "Skill Read",
       "skill:create": "New Skill Created",
       "skill:update": "Skill Updated",
       "skill:delete": "Skill Deleted",
+      "skill:import": "Skill Imported",
+      "skill:preview": "Skill Previewed",
+      "skill:use": "Skill Used",
+      "skill:test": "Skill Tested",
+      "skill:execute": "Skill Executed",
+      "skill:file:update": "Skill File Updated",
       "workflow:create": "New Workflow Created",
       "workflow:update": "Workflow Updated",
       "workflow:delete": "Workflow Deleted",
@@ -243,26 +224,26 @@ export class NotificationService {
     resource: string,
     resourceId: string
   ): string {
-    return `${actorName} ${action} ${resource} (${resourceId})`;
+    return `${actorName} performed ${action} on ${resource} (${resourceId})`;
   }
 
   private getEmailBody(auditLog: AuditLog, actorName: string): string {
+    const changes = auditLog.changes ? JSON.stringify(auditLog.changes, null, 2) : "";
+    const metadata = auditLog.metadata ? JSON.stringify(auditLog.metadata, null, 2) : "";
+
     return `
-      <h2>${this.getNotificationTitle(auditLog.action)}</h2>
-      <p><strong>Actor:</strong> ${actorName}</p>
-      <p><strong>Resource:</strong> ${auditLog.resource}</p>
-      <p><strong>Resource ID:</strong> ${auditLog.resourceId}</p>
-      <p><strong>Time:</strong> ${auditLog.createdAt.toLocaleString()}</p>
-      ${
-        auditLog.changes
-          ? `<p><strong>Changes:</strong> <pre>${JSON.stringify(auditLog.changes, null, 2)}</pre></p>`
-          : ""
-      }
+      <h2>${escapeHtml(this.getNotificationTitle(auditLog.action))}</h2>
+      <p><strong>Actor:</strong> ${escapeHtml(actorName)}</p>
+      <p><strong>Action:</strong> ${escapeHtml(auditLog.action)}</p>
+      <p><strong>Resource:</strong> ${escapeHtml(auditLog.resource)}</p>
+      <p><strong>Resource ID:</strong> ${escapeHtml(auditLog.resourceId)}</p>
+      <p><strong>Time:</strong> ${escapeHtml(auditLog.createdAt.toISOString())}</p>
+      ${changes ? `<p><strong>Changes:</strong></p><pre>${escapeHtml(changes)}</pre>` : ""}
+      ${metadata ? `<p><strong>Metadata:</strong></p><pre>${escapeHtml(metadata)}</pre>` : ""}
     `;
   }
 }
 
-// Singleton instance
 let notificationService: NotificationService;
 
 export const initializeNotificationService = (prisma: PrismaClient) => {
@@ -271,3 +252,15 @@ export const initializeNotificationService = (prisma: PrismaClient) => {
 };
 
 export { notificationService };
+
+function escapeHtml(input: string) {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function stripHtml(input: string) {
+  return input.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}

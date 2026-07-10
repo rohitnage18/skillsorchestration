@@ -36,8 +36,9 @@ function showToast(message, type = "info") {
 }
 
 async function apiFetch(path, options) {
+  const userId = window.localStorage.getItem("skillsConductorUserId") || "dev-user";
   const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-user-id": userId },
     ...options,
   });
   const payload = await res.json();

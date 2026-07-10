@@ -34,6 +34,7 @@ const SERVER_VERSION = "1.1.0";
 
 async function main(): Promise<void> {
   const skillsPath = process.env.SKILLS_PATH;
+  const conductorUrl = getConductorUrl();
 
   if (!skillsPath) {
     console.error(
@@ -64,6 +65,15 @@ async function main(): Promise<void> {
     async () => {
       try {
         const skills = await listSkills(skillsPath);
+        await reportSkillEvent(conductorUrl, {
+          action: "skill:list",
+          skillName: "skill-library",
+          resourceId: "skill-library",
+          metadata: {
+            count: skills.length,
+            source: "skills-mcp-server",
+          },
+        });
         return {
           content: [{ type: "text", text: JSON.stringify(skills, null, 2) }],
         };
@@ -93,6 +103,15 @@ async function main(): Promise<void> {
     async ({ name }) => {
       try {
         const content = await getSkill(skillsPath, name);
+        await reportSkillEvent(conductorUrl, {
+          action: "skill:read",
+          skillName: name,
+          resourceId: name,
+          metadata: {
+            bytes: Buffer.byteLength(content, "utf-8"),
+            source: "skills-mcp-server",
+          },
+        });
         return { content: [{ type: "text", text: content }] };
       } catch (err) {
         return errorResult(err);
@@ -188,6 +207,73 @@ async function main(): Promise<void> {
     `[${SERVER_NAME}] v${SERVER_VERSION} running on stdio. ` +
       `Skills: ${skillsPath} | Project: ${projectPath ?? "(not set — read_context/update_context unavailable)"}`
   );
+}
+
+type SkillEventAction = "skill:list" | "skill:read";
+
+interface SkillEventInput {
+  action: SkillEventAction;
+  skillName: string;
+  resourceId: string;
+  metadata?: Record<string, unknown>;
+}
+
+function getConductorUrl(): string {
+  return (process.env.CONDUCTOR_URL ?? "").trim().replace(/\/+$/, "");
+}
+
+async function reportSkillEvent(conductorUrl: string, event: SkillEventInput): Promise<void> {
+  if (!conductorUrl) {
+    return;
+  }
+
+  const userId =
+    (process.env.MCP_USER_ID ?? "").trim() ||
+    (process.env.USER ?? "").trim() ||
+    (process.env.USERNAME ?? "").trim() ||
+    "mcp-user";
+  const userEmail =
+    (process.env.MCP_USER_EMAIL ?? "").trim() ||
+    (userId.includes("@") ? userId : `${userId}@local.conductor`);
+  const token = (process.env.SKILL_EVENTS_TOKEN ?? "").trim();
+
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "x-user-id": userId,
+    "x-user-email": userEmail,
+  };
+
+  if (token) {
+    headers.authorization = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch(`${conductorUrl}/api/skill-events`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        action: event.action,
+        skillName: event.skillName,
+        resourceId: event.resourceId,
+        source: "skills-mcp-server",
+        metadata: event.metadata,
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(
+        `[${SERVER_NAME}] Failed to report ${event.action} for ${event.skillName}: ` +
+          `${response.status} ${text}`
+      );
+    }
+  } catch (err) {
+    console.error(
+      `[${SERVER_NAME}] Failed to report ${event.action} for ${event.skillName}: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+  }
 }
 
 /** Converts a thrown error into a well-formed MCP tool error result. */

@@ -5,6 +5,7 @@ import {
   logAction,
   purgeOldAuditLogs,
 } from "../../../features/logging/server-functions";
+import { getErrorStatus, requireAdmin } from "../../../lib/auth.js";
 
 /**
  * GET /api/audit-logs
@@ -14,7 +15,7 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Add admin authorization check
+    await requireAdmin(request.headers);
     const searchParams = request.nextUrl.searchParams;
     const userId = searchParams.get("userId") || undefined;
     const resource = searchParams.get("resource") || undefined;
@@ -38,8 +39,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Audit logs endpoint error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: getErrorStatus(error, 500) }
     );
   }
 }
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    await requireAdmin(request.headers);
     const body = await request.json();
     const result = await logAction(body);
 
@@ -61,8 +63,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Log action endpoint error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: getErrorStatus(error, 500) }
     );
   }
 }
@@ -75,7 +77,7 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    // TODO: Add admin authorization check
+    await requireAdmin(request.headers);
     const searchParams = request.nextUrl.searchParams;
     const olderThanDays = parseInt(searchParams.get("olderThanDays") || "90");
 
@@ -89,8 +91,8 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error("Purge audit logs endpoint error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: getErrorStatus(error, 500) }
     );
   }
 }

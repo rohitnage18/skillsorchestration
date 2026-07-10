@@ -5,6 +5,13 @@ import { useEffect, useState } from "react";
 
 const initialToast = { visible: false, message: "", type: "info" };
 
+function getRequestHeaders() {
+  return {
+    "Content-Type": "application/json",
+    "x-user-id": window.localStorage.getItem("skillsConductorUserId") || "dev-user",
+  };
+}
+
 export default function SkillsHome() {
   const [skills, setSkills] = useState([]);
   const [query, setQuery] = useState("");
@@ -47,7 +54,7 @@ export default function SkillsHome() {
     try {
       const res = await fetch("/api/skills", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getRequestHeaders(),
         body: JSON.stringify({ skillName, description }),
       });
       const data = await res.json();

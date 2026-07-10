@@ -79,6 +79,26 @@
           "type": "string",
           "default": "",
           "description": "Absolute path to your skills/ folder (the same folder used by SKILLS_PATH for the skills-mcp-server)."
+        },
+        "skillsLibrary.conductorUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional base URL for the conductor app. When set, preview/insert/file-change events are reported to /api/skill-events."
+        },
+        "skillsLibrary.userId": {
+          "type": "string",
+          "default": "",
+          "description": "Optional user id sent to the conductor app in skill event headers."
+        },
+        "skillsLibrary.userEmail": {
+          "type": "string",
+          "default": "",
+          "description": "Optional user email sent to the conductor app in skill event headers."
+        },
+        "skillsLibrary.eventToken": {
+          "type": "string",
+          "default": "",
+          "description": "Optional bearer token for reporting skill events to the conductor app."
         }
       }
     }

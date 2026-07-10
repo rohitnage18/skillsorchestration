@@ -4,6 +4,8 @@ import {
   markNotificationAsRead,
   clearOldNotifications,
 } from "../../../features/logging/server-functions";
+import { db } from "../../../lib/db";
+import { getErrorStatus, requireAdmin } from "../../../lib/auth.js";
 
 /**
  * GET /api/notifications
@@ -12,7 +14,6 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Add user authentication check
     const userId = request.headers.get("x-user-id");
     if (!userId) {
       return NextResponse.json(
@@ -44,8 +45,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Notifications endpoint error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: getErrorStatus(error, 500) }
     );
   }
 }
@@ -74,6 +75,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const notification = await db.notification.findFirst({
+      where: {
+        id: notificationId,
+        userId,
+      },
+    });
+
+    if (!notification) {
+      return NextResponse.json(
+        { error: "Notification not found" },
+        { status: 404 }
+      );
+    }
+
     const result = await markNotificationAsRead(notificationId);
 
     if (!result.success) {
@@ -84,8 +99,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Mark as read endpoint error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: getErrorStatus(error, 500) }
     );
   }
 }
@@ -98,7 +113,7 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    // TODO: Add admin authorization check
+    await requireAdmin(request.headers);
     const searchParams = request.nextUrl.searchParams;
     const olderThanDays = parseInt(searchParams.get("olderThanDays") || "90");
 
@@ -112,8 +127,8 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error("Clear notifications endpoint error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: getErrorStatus(error, 500) }
     );
   }
 }

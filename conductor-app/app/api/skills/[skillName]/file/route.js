@@ -1,4 +1,5 @@
 import { loadFile, saveFile } from "../../../../../lib/skillStorage.js";
+import { getErrorStatus, requireAdmin } from "../../../../../lib/auth.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -25,6 +26,7 @@ export async function GET(req, { params }) {
 
 export async function POST(req, { params }) {
   try {
+    const user = await requireAdmin(req.headers);
     const { skillName } = await params;
     const body = await req.json();
     const filePath = String(body.path || "").trim();
@@ -34,11 +36,11 @@ export async function POST(req, { params }) {
       return json({ error: "path is required" }, 400);
     }
 
-    saveFile(skillName, filePath, content);
+    await saveFile(skillName, filePath, content, user.id);
     return json({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to save file";
     const status = message.includes("outside") ? 400 : 500;
-    return json({ error: message }, status);
+    return json({ error: message }, getErrorStatus(error, status));
   }
 }

@@ -1,4 +1,4 @@
-import { listSkillFiles, loadSkill } from "../../../../../lib/skillStorage.js";
+import { listSkillFiles, loadSkill, logSkillActivity } from "../../../../../lib/skillStorage.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -49,7 +49,18 @@ function simulateSkillTest(skillName) {
 export async function POST(req, { params }) {
   try {
     const { skillName } = await params;
+    const userId = req.headers.get("x-user-id")?.trim() || "dev-user";
     const result = simulateSkillTest(skillName);
+    await logSkillActivity({
+      userId,
+      action: "skill:test",
+      resourceId: skillName,
+      metadata: {
+        skillName,
+        status: result.status,
+        source: "conductor-ui",
+      },
+    });
     return json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to run skill test";

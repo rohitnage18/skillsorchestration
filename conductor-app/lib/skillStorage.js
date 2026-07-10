@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 
 const SKILLS_ROOT = path.join(process.cwd(), "..", "skills");
 const IMPORT_ROOT = path.join(process.cwd(), "imported-workspaces");
@@ -7,7 +8,8 @@ const STATE_FILENAME = "skill-state.json";
 
 function safeJoin(base, target) {
   const resolved = path.resolve(base, target);
-  if (!resolved.startsWith(path.resolve(base))) {
+  const relative = path.relative(path.resolve(base), resolved);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
     throw new Error("Invalid path");
   }
   return resolved;
@@ -15,6 +17,29 @@ function safeJoin(base, target) {
 
 function normalizeSkillName(name) {
   return name.trim().replace(/\s+/g, "-").toLowerCase();
+}
+
+function hashContent(content) {
+  return crypto.createHash("sha256").update(String(content)).digest("hex");
+}
+
+function getFileType(relativePath) {
+  return relativePath === "SKILL.md" ? "skill" : relativePath.startsWith("references/") ? "reference" : "other";
+}
+
+function assertEditableSkillFile(relativePath) {
+  const normalizedPath = relativePath.replace(/\\/g, "/");
+  const isSkillFile = normalizedPath === "SKILL.md";
+  const isReferenceFile =
+    normalizedPath.startsWith("references/") &&
+    normalizedPath.endsWith(".md") &&
+    normalizedPath.split("/").length === 2;
+
+  if (!isSkillFile && !isReferenceFile) {
+    throw new Error("Only SKILL.md and references/*.md files can be edited.");
+  }
+
+  return normalizedPath;
 }
 
 function loadSkillState(skillName) {
@@ -98,7 +123,7 @@ function ensureSkillExists(skillName) {
   return skillDir;
 }
 
-function createSkill(skillName, description) {
+async function createSkill(skillName, description, userId = "dev-user") {
   if (!skillName || !skillName.trim()) {
     throw new Error("Skill name is required.");
   }
@@ -114,6 +139,16 @@ function createSkill(skillName, description) {
   fs.mkdirSync(path.join(skillDir, "references"), { recursive: true });
   const content = `---\nname: ${normalized}\ndescription: ${description || "New skill"}\n---\n\n# ${normalized}\n\nDescribe this skill here.\n`;
   fs.writeFileSync(path.join(skillDir, "SKILL.md"), content, "utf-8");
+  await logSkillActivity({
+    userId,
+    action: "skill:create",
+    resourceId: normalized,
+    changes: {
+      before: null,
+      after: { skillName: normalized, description: description || "New skill" },
+    },
+    metadata: { skillName: normalized, source: "conductor-ui" },
+  });
   return normalized;
 }
 
@@ -162,15 +197,39 @@ function loadFile(skillName, relativePath) {
   return fs.readFileSync(file, "utf-8");
 }
 
-function saveFile(skillName, relativePath, content) {
+async function saveFile(skillName, relativePath, content, userId = "dev-user") {
+  const editablePath = assertEditableSkillFile(relativePath);
   const skillDir = ensureSkillExists(skillName);
-  const file = safeJoin(skillDir, relativePath);
+  const file = safeJoin(skillDir, editablePath);
   const directory = path.dirname(file);
-  if (!directory.startsWith(skillDir)) {
+  const directoryRelative = path.relative(skillDir, directory);
+  if (directoryRelative.startsWith("..") || path.isAbsolute(directoryRelative)) {
     throw new Error("Cannot write outside of the skill folder.");
   }
+  const previousContent = fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : "";
   fs.mkdirSync(directory, { recursive: true });
   fs.writeFileSync(file, String(content), "utf-8");
+  await logSkillActivity({
+    userId,
+    action: "skill:file:update",
+    resourceId: `${normalizeSkillName(skillName)}:${editablePath}`,
+    changes: {
+      before: {
+        hash: hashContent(previousContent),
+        bytes: Buffer.byteLength(previousContent, "utf-8"),
+      },
+      after: {
+        hash: hashContent(content),
+        bytes: Buffer.byteLength(String(content), "utf-8"),
+      },
+    },
+    metadata: {
+      skillName: normalizeSkillName(skillName),
+      filePath: editablePath,
+      fileType: getFileType(editablePath),
+      source: "conductor-ui",
+    },
+  });
 }
 
 function ensureProjectContextFile(projectDir, projectName) {
@@ -218,9 +277,10 @@ Initial context scaffold created for this project.
   return contextPath;
 }
 
-async function logImportActivity(sourceSkillName, destinationName, userId = "dev-user") {
+async function logSkillActivity({ userId = "dev-user", action, resourceId, changes, metadata }) {
   try {
     const { db } = await import("./db");
+    const { logAction } = await import("../features/logging/server-functions");
 
     await db.user.upsert({
       where: { id: userId },
@@ -231,45 +291,20 @@ async function logImportActivity(sourceSkillName, destinationName, userId = "dev
       },
     });
 
-    const auditLog = await db.auditLog.create({
-      data: {
-        userId,
-        action: "skill:import",
-        resource: "skill",
-        resourceId: destinationName,
-        changes: {
-          before: { sourceSkillName },
-          after: { importedTo: destinationName },
-        },
-        metadata: {
-          sourceSkillName,
-          importedTo: destinationName,
-        },
-      },
+    await logAction({
+      userId,
+      action,
+      resource: "skill",
+      resourceId,
+      changes,
+      metadata,
     });
-
-    const admins = await db.user.findMany({ where: { role: "ADMIN" } });
-    if (admins.length > 0) {
-      await Promise.all(
-        admins.map((admin) =>
-          db.notification.create({
-            data: {
-              userId: admin.id,
-              title: "Skill Imported",
-              message: `${sourceSkillName} was imported into ${destinationName}`,
-              type: "USER_ACTION",
-              auditLogId: auditLog.id,
-            },
-          })
-        )
-      );
-    }
   } catch (error) {
-    console.error("Failed to log skill import activity:", error);
+    console.error("Failed to log skill activity:", error);
   }
 }
 
-async function importSkill(skillName, importName) {
+async function importSkill(skillName, importName, userId = "dev-user") {
   const skillDir = ensureSkillExists(skillName);
   const destinationName = normalizeSkillName(importName || skillName);
   const targetDir = safeJoin(IMPORT_ROOT, destinationName);
@@ -283,7 +318,20 @@ async function importSkill(skillName, importName) {
     importedTo: destinationName,
     importedAt: new Date().toISOString(),
   });
-  await logImportActivity(skillName, destinationName);
+  await logSkillActivity({
+    userId,
+    action: "skill:import",
+    resourceId: destinationName,
+    changes: {
+      before: { sourceSkillName: normalizeSkillName(skillName) },
+      after: { importedTo: destinationName },
+    },
+    metadata: {
+      skillName: normalizeSkillName(skillName),
+      importedTo: destinationName,
+      source: "conductor-ui",
+    },
+  });
   return destinationName;
 }
 
@@ -297,4 +345,5 @@ export {
   saveFile,
   importSkill,
   loadSkillState,
+  logSkillActivity,
 };

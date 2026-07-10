@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 
 const initialToast = { visible: false, message: "", type: "info" };
 
+function getRequestHeaders() {
+  return {
+    "Content-Type": "application/json",
+    "x-user-id": window.localStorage.getItem("skillsConductorUserId") || "dev-user",
+  };
+}
+
 export default function SkillEditor({ params }) {
   const router = useRouter();
   const { skillName: encodedSkillName } = use(params);
@@ -52,7 +59,7 @@ export default function SkillEditor({ params }) {
     try {
       const res = await fetch("/api/import", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getRequestHeaders(),
         body: JSON.stringify({ skillName, targetName }),
       });
       const data = await res.json();
@@ -69,6 +76,7 @@ export default function SkillEditor({ params }) {
     try {
       const res = await fetch(`/api/skills/${encodeURIComponent(skillName)}/run`, {
         method: "POST",
+        headers: getRequestHeaders(),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Skill test failed");
