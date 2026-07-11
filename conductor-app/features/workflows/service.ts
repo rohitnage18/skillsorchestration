@@ -10,7 +10,7 @@ async function ensureWorkflowOwner(ownerId: string) {
     update: {},
     create: {
       id: ownerId,
-      email: ownerId === "dev-user" ? "dev-user@local.conductor" : `${ownerId}@local.conductor`,
+      email: `${ownerId}@local.conductor`,
     },
   });
 }

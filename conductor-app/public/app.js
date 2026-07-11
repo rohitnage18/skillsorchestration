@@ -36,16 +36,24 @@ function showToast(message, type = "info") {
 }
 
 async function apiFetch(path, options) {
-  const userId = window.localStorage.getItem("skillsConductorUserId") || "dev-user";
   const res = await fetch(path, {
-    headers: { "Content-Type": "application/json", "x-user-id": userId },
+    headers: { "Content-Type": "application/json" },
     ...options,
   });
   const payload = await res.json();
   if (!res.ok) {
-    throw new Error(payload.error || `Request failed: ${res.status}`);
+    const error = new Error(payload.error || `Request failed: ${res.status}`);
+    error.status = res.status;
+    throw error;
   }
   return payload;
+}
+
+async function requestSkillChange(body) {
+  return apiFetch("/api/skill-change-requests", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 function renderSkills() {
@@ -207,6 +215,23 @@ async function saveCurrentFile() {
     setStatus(`Saved ${selectedFile}`, "success");
     showToast(`Saved ${selectedFile}`, "success");
   } catch (error) {
+    if (error.status === 403) {
+      try {
+        await requestSkillChange({
+          type: "SKILL_FILE_UPDATE",
+          skillName: selectedSkill,
+          path: selectedFile,
+          content,
+        });
+        setStatus(`Approval requested for ${selectedFile}`, "success");
+        showToast(`Approval requested for ${selectedFile}`, "success");
+        return;
+      } catch (requestError) {
+        setStatus(requestError.message, "error");
+        showToast(requestError.message, "error");
+        return;
+      }
+    }
     setStatus(error.message, "error");
     showToast(error.message, "error");
   }
@@ -232,6 +257,22 @@ async function createSkillFlow() {
     await loadSkills();
     await selectSkill(result.skillName);
   } catch (error) {
+    if (error.status === 403) {
+      try {
+        await requestSkillChange({
+          type: "SKILL_CREATE",
+          skillName: name,
+          description,
+        });
+        setStatus(`Approval requested for skill ${name}`, "success");
+        showToast(`Approval requested for skill ${name}`, "success");
+        return;
+      } catch (requestError) {
+        setStatus(requestError.message, "error");
+        showToast(requestError.message, "error");
+        return;
+      }
+    }
     setStatus(error.message, "error");
     showToast(error.message, "error");
   }
@@ -252,6 +293,22 @@ async function importSkill() {
     });
     setStatus(`Imported to ${result.path}`, "success");
   } catch (error) {
+    if (error.status === 403) {
+      try {
+        await requestSkillChange({
+          type: "SKILL_IMPORT",
+          skillName: selectedSkill,
+          targetName,
+        });
+        setStatus(`Approval requested to import ${selectedSkill}`, "success");
+        showToast(`Approval requested to import ${selectedSkill}`, "success");
+        return;
+      } catch (requestError) {
+        setStatus(requestError.message, "error");
+        showToast(requestError.message, "error");
+        return;
+      }
+    }
     setStatus(error.message, "error");
   }
 }

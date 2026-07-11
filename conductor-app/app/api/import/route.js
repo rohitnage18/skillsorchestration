@@ -1,5 +1,6 @@
 import { importSkill } from "../../../lib/skillStorage.js";
 import { getErrorStatus, requireAdmin } from "../../../lib/auth.js";
+import { normalizeSkillNameInput } from "../../../lib/inputSafety.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -12,15 +13,8 @@ export async function POST(req) {
   try {
     const user = await requireAdmin(req.headers);
     const body = await req.json();
-    const skillName = String(body.skillName || "").trim();
-    const targetName = String(body.targetName || "").trim();
-
-    if (!skillName) {
-      return json({ error: "skillName is required" }, 400);
-    }
-    if (!targetName) {
-      return json({ error: "targetName is required" }, 400);
-    }
+    const skillName = normalizeSkillNameInput(body.skillName);
+    const targetName = normalizeSkillNameInput(body.targetName);
 
     const destination = await importSkill(skillName, targetName, user.id);
     return json({ path: destination });

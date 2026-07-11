@@ -11,7 +11,7 @@
         "MCP_USER_ID": "user-1",
         "MCP_USER_NAME": "User One",
         "MCP_USER_EMAIL": "user1@example.com",
-        "SKILL_EVENTS_TOKEN": ""
+        "SKILL_EVENTS_TOKEN": "replace-with-admin-provided-token"
       }
     }
   }

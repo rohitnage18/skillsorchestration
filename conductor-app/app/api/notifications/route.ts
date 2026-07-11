@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getNotifications,
   markNotificationAsRead,
+  markAllNotificationsAsRead,
   clearOldNotifications,
 } from "../../../features/logging/server-functions";
 import { db } from "../../../lib/db";
-import { getErrorStatus, getRequestUser, requireAdmin } from "../../../lib/auth.js";
+import { getErrorStatus, requireAdmin, requireUser } from "../../../lib/auth.js";
 
 /**
  * GET /api/notifications
@@ -14,13 +15,7 @@ import { getErrorStatus, getRequestUser, requireAdmin } from "../../../lib/auth.
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request.headers);
-    if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const user = await requireUser(request.headers);
 
     const searchParams = request.nextUrl.searchParams;
     const read = searchParams.get("read")
@@ -57,16 +52,18 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getRequestUser(request.headers);
-    if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const user = await requireUser(request.headers);
 
     const body = await request.json();
-    const { notificationId } = body;
+    const { notificationId, markAll } = body;
+
+    if (markAll === true) {
+      const result = await markAllNotificationsAsRead(user.id);
+      if (!result.success) {
+        return NextResponse.json(result, { status: 500 });
+      }
+      return NextResponse.json(result);
+    }
 
     if (!notificationId) {
       return NextResponse.json(

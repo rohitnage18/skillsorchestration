@@ -7,10 +7,6 @@ export async function getRequestUserId(headers) {
     return session.user.id;
   }
 
-  if (process.env.ALLOW_HEADER_AUTH === "true") {
-    return headers.get("x-user-id")?.trim() || "";
-  }
-
   return "";
 }
 
@@ -25,16 +21,90 @@ export async function getRequestUser(headers) {
   });
 }
 
-export async function requireAdmin(headers) {
+export async function requireUser(headers) {
   const user = await getRequestUser(headers);
-  if (!user || user.role !== "ADMIN") {
-    const error = new Error("Admin permission is required.");
+  if (!user) {
+    const error = new Error("Login is required.");
+    error.status = 401;
+    throw error;
+  }
+  if (user.status !== "ACTIVE") {
+    await logInactiveUserAccess(user);
+    const error = new Error(
+      user.status === "PENDING"
+        ? "Your account is pending admin approval."
+        : "Your account is disabled."
+    );
     error.status = 403;
     throw error;
   }
   return user;
 }
 
+export async function requireRole(headers, roles) {
+  const allowedRoles = Array.isArray(roles) ? roles : [roles];
+  const user = await requireUser(headers);
+  if (!allowedRoles.includes(user.role)) {
+    await logAuthorizationFailure(user, allowedRoles);
+    const error = new Error(`${allowedRoles.join(" or ")} permission is required.`);
+    error.status = 403;
+    throw error;
+  }
+  return user;
+}
+
+export async function requireAdmin(headers) {
+  return requireRole(headers, "ADMIN");
+}
+
 export function getErrorStatus(error, fallback = 500) {
   return typeof error?.status === "number" ? error.status : fallback;
+}
+
+async function logAuthorizationFailure(user, allowedRoles) {
+  try {
+    await db.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "auth:role-denied",
+        resource: "authorization",
+        resourceId: user.id,
+        changes: {
+          before: { role: user.role, status: user.status },
+          after: { requiredRoles: allowedRoles },
+        },
+        metadata: {
+          email: user.email,
+          name: user.name,
+          attemptedAt: new Date().toISOString(),
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Failed to log authorization failure:", error);
+  }
+}
+
+async function logInactiveUserAccess(user) {
+  try {
+    await db.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "auth:status-denied",
+        resource: "authorization",
+        resourceId: user.id,
+        changes: {
+          before: { status: user.status },
+          after: { requiredStatus: "ACTIVE" },
+        },
+        metadata: {
+          email: user.email,
+          name: user.name,
+          attemptedAt: new Date().toISOString(),
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Failed to log inactive user access:", error);
+  }
 }

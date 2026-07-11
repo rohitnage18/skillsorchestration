@@ -6,40 +6,35 @@ export default function Home() {
       <section className="dashboard-hero">
         <div className="hero-copy">
           <p className="eyebrow">Conductor Studio</p>
-          <h1>Manage skill import workflows with a modern command center.</h1>
+          <h1>Use approved skills with clean tracking and admin guardrails.</h1>
           <p className="hero-description">
-            A polished interface for discovering, validating, and staging skill workspaces — no raw markdown exposed, no surprise imports, only clear actions.
+            Browse the team skill library, validate skills before use, and keep important actions logged for admins.
           </p>
 
           <div className="hero-actions">
             <Link href="/skills" className="button primary">
-              Open Skill IDE
+              Browse skills
             </Link>
-            <button className="button secondary">Import sample workspace</button>
           </div>
 
           <div className="hero-badges">
-            <span className="hero-badge">Safe import staging</span>
-            <span className="hero-badge">Guided workspace validation</span>
-            <span className="hero-badge">Audit-ready output</span>
+            <span className="hero-badge">Role-based access</span>
+            <span className="hero-badge">Admin approvals</span>
+            <span className="hero-badge">Audit logs</span>
           </div>
 
           <div className="hero-stat-row">
             <div className="hero-stat">
-              <strong>28</strong>
-              <span>Skills tracked</span>
+              <strong>1</strong>
+              <span>Shared skill library</span>
             </div>
             <div className="hero-stat">
-              <strong>9</strong>
-              <span>Import-ready workspaces</span>
+              <strong>Admin</strong>
+              <span>Approval required</span>
             </div>
             <div className="hero-stat">
-              <strong>4</strong>
-              <span>Workflow stages</span>
-            </div>
-            <div className="hero-stat">
-              <strong>100%</strong>
-              <span>Markdown hidden</span>
+              <strong>DB</strong>
+              <span>Prisma audit logs</span>
             </div>
           </div>
         </div>
@@ -48,22 +43,22 @@ export default function Home() {
           <div className="metric-card feature-card hero-feature-card">
             <div className="metric-icon accent">✓</div>
             <div>
-              <p>Live validation</p>
-              <strong>Confidence before import</strong>
+              <p>Validation</p>
+              <strong>Check skills before use</strong>
             </div>
           </div>
           <div className="metric-card feature-card hero-feature-card">
-            <div className="metric-icon accent">⧗</div>
+            <div className="metric-icon accent">↗</div>
             <div>
-              <p>Safe staging</p>
-              <strong>Isolated workspace creation</strong>
+              <p>Guardrails</p>
+              <strong>Admin approval required</strong>
             </div>
           </div>
           <div className="metric-card feature-card hero-feature-card">
             <div className="metric-icon accent">★</div>
             <div>
-              <p>Startup polish</p>
-              <strong>Ready for demos and reviews</strong>
+              <p>Observability</p>
+              <strong>Logs and emails for admins</strong>
             </div>
           </div>
         </div>
@@ -73,22 +68,22 @@ export default function Home() {
         <div className="activity-card pulse-card">
           <div className="panel-header">
             <div>
-              <p className="eyebrow">Team pulse</p>
-              <h3>Workflow status at a glance</h3>
+              <p className="eyebrow">System flow</p>
+              <h3>What happens when users act</h3>
             </div>
-            <span className="status-pill success">Healthy</span>
+            <span className="status-pill success">Protected</span>
           </div>
           <div className="activity-item">
-            <p>Recent import</p>
-            <span>3 minutes ago</span>
+            <p>User actions</p>
+            <span>Saved to Prisma</span>
           </div>
           <div className="activity-item">
-            <p>Validation checks</p>
-            <span>Live and active</span>
+            <p>Email alerts</p>
+            <span>Sent for key events</span>
           </div>
           <div className="activity-item">
-            <p>Workspace staging</p>
-            <span>4 pending</span>
+            <p>Skill changes</p>
+            <span>Require admin approval</span>
           </div>
         </div>
       </aside>

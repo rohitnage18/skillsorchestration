@@ -187,20 +187,13 @@ Admin-only actions:
 - View/purge audit logs.
 - Clear old notifications.
 
-Current temporary identity mechanism:
+Current identity mechanism:
 
-- API routes read `x-user-id`.
-- Browser UI sends `x-user-id` from `localStorage.skillsConductorUserId`.
+- Browser routes use Google/GitHub Auth.js sessions.
+- Admin APIs resolve the logged-in session user from the server.
 - The matching database user must have `role = ADMIN`.
+- MCP/VS Code event reporting uses `SKILL_EVENTS_TOKEN` plus user identity headers because those tools run outside the browser session.
 - Admin-only user management is available at `GET /api/users` and `POST /api/users`.
-
-Set a local admin user in the browser:
-
-```js
-localStorage.setItem("skillsConductorUserId", "admin-user-id")
-```
-
-This is intentionally a temporary bridge. Full authentication/session handling is still a later roadmap item.
 
 ## Guardrails Currently Implemented
 
@@ -208,6 +201,9 @@ This is intentionally a temporary bridge. Full authentication/session handling i
   - `SKILL.md`
   - `references/*.md`
 - Path traversal is blocked for filesystem skill operations.
+- Normal users cannot directly create, import, or edit skills.
+- User skill changes are stored as pending `SkillChangeRequest` records.
+- Admins approve/reject skill changes from `/admin`.
 - Admin notification emails include metadata and hashes, not full file contents.
 - A user cannot mark another user's notification as read.
 - Audit/email failures do not block the primary skill action.
@@ -283,7 +279,7 @@ FROM_EMAIL=noreply@example.com
 SKILL_EVENTS_TOKEN=change-me
 ```
 
-`SKILL_EVENTS_TOKEN` is optional. If set, external callers such as the VS Code extension must send:
+`SKILL_EVENTS_TOKEN` is required for external callers such as MCP and the VS Code extension. They must send:
 
 ```text
 Authorization: Bearer change-me
@@ -320,11 +316,7 @@ cd conductor-app
 npm run dev
 ```
 
-Then open the conductor app in the browser and set:
-
-```js
-localStorage.setItem("skillsConductorUserId", "admin-user-id")
-```
+Then open the conductor app in the browser and sign in at `/login`.
 
 ### 6. Configure VS Code Extension Reporting
 
@@ -426,15 +418,9 @@ Create `conductor-app/.env` and set `DATABASE_URL`.
 
 Check that:
 
-1. The request sends `x-user-id`.
-2. That user exists in the database.
+1. You are signed in through `/login`.
+2. That signed-in user exists in the database.
 3. The user has `role = ADMIN`.
-
-For local browser testing:
-
-```js
-localStorage.setItem("skillsConductorUserId", "admin-user-id")
-```
 
 ### Emails are not sent
 

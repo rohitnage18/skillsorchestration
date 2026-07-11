@@ -1044,6 +1044,12 @@ button {
   width: 100%;
 }
 
+.button.compact {
+  border-radius: 999px;
+  font-size: 0.78rem;
+  padding: 8px 12px;
+}
+
 button:disabled,
 .button:disabled {
   opacity: 0.55;
@@ -1176,6 +1182,14 @@ button:disabled,
   margin-top: 24px;
 }
 
+.admin-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .empty-state {
   background: rgba(248, 250, 252, 0.86);
   border: 1px dashed rgba(148, 163, 184, 0.7);
@@ -1225,6 +1239,10 @@ button:disabled,
   margin-top: 18px;
 }
 
+.admin-table.compact-list {
+  gap: 8px;
+}
+
 .admin-row {
   align-items: center;
   background: #fff;
@@ -1249,6 +1267,184 @@ button:disabled,
   .admin-metrics,
   .admin-grid,
   .admin-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* UI refinement pass: cleaner user-facing Conductor screens */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 18px 34px;
+  background: rgba(2, 6, 23, 0.82);
+  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.22);
+}
+
+.brand-logo {
+  border-radius: 18px;
+  box-shadow: 0 14px 36px rgba(37, 99, 235, 0.28);
+}
+
+.brand-tag {
+  color: #a8b6cb;
+}
+
+.site-nav {
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 20px;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.site-nav a,
+.nav-button {
+  padding: 10px 13px;
+  border-radius: 14px;
+  color: #dbeafe;
+  font-size: 0.94rem;
+}
+
+.site-nav a:hover,
+.nav-button:hover {
+  color: #ffffff;
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.nav-link-with-badge {
+  position: relative;
+  gap: 8px;
+}
+
+.nav-badge {
+  display: inline-grid;
+  min-width: 22px;
+  height: 22px;
+  margin-left: 6px;
+  place-items: center;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.dashboard-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.dashboard-right {
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.dashboard-hero,
+.conductor-main,
+.conductor-left,
+.conductor-right,
+.studio-panel,
+.nav-card,
+.skill-status-panel {
+  border-color: rgba(148, 163, 184, 0.12);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(7, 12, 23, 0.94));
+}
+
+.dashboard-hero {
+  grid-template-columns: minmax(0, 1.35fr) 360px;
+  overflow: hidden;
+}
+
+.hero-copy h1,
+.page-header h1 {
+  max-width: 860px;
+  letter-spacing: -0.045em;
+}
+
+.hero-description,
+.page-copy {
+  max-width: 720px;
+  color: #b9c7d9;
+}
+
+.hero-stat-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hero-stat,
+.stat-card,
+.skill-card,
+.summary-item,
+.result-card {
+  background: rgba(2, 6, 23, 0.54);
+  border-color: rgba(148, 163, 184, 0.12);
+}
+
+.button {
+  border-radius: 16px;
+  font-weight: 800;
+}
+
+.button.primary {
+  background: linear-gradient(135deg, #2563eb, #14b8a6);
+}
+
+.button.secondary {
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.button.secondary:hover {
+  border-color: rgba(96, 165, 250, 0.38);
+}
+
+.conductor-shell {
+  grid-template-columns: 300px minmax(0, 1fr) 300px;
+}
+
+.admin-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+  align-items: end;
+}
+
+.conductor-full-width {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.conductor-grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.skill-card {
+  min-height: 150px;
+}
+
+.skill-card:hover {
+  box-shadow: 0 22px 54px rgba(37, 99, 235, 0.16);
+}
+
+.skill-card-footer {
+  margin-top: 28px;
+}
+
+.action-list button {
+  justify-content: center;
+}
+
+.empty-state-card {
+  background: rgba(2, 6, 23, 0.42);
+}
+
+@media (max-width: 1100px) {
+  .dashboard-hero,
+  .conductor-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-stat-row {
     grid-template-columns: 1fr;
   }
 }
@@ -1875,5 +2071,130 @@ button:disabled,
   .conductor-header {
     flex-direction: column;
     align-items: stretch;
+  }
+}
+
+/* Final user-facing UI overrides */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 18px 34px;
+  background: rgba(2, 6, 23, 0.84);
+  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.22);
+}
+
+.site-nav {
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 20px;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.site-nav a,
+.nav-button {
+  padding: 10px 13px;
+  border-radius: 14px;
+  color: #dbeafe;
+}
+
+.site-nav a:hover,
+.nav-button:hover {
+  color: #ffffff;
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.dashboard-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.dashboard-right {
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.dashboard-hero {
+  grid-template-columns: minmax(0, 1.35fr) 360px;
+}
+
+.dashboard-hero,
+.conductor-main,
+.conductor-left,
+.conductor-right,
+.studio-panel,
+.nav-card,
+.skill-status-panel {
+  border-color: rgba(148, 163, 184, 0.12);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(7, 12, 23, 0.94));
+}
+
+.hero-copy h1,
+.page-header h1 {
+  max-width: 860px;
+  letter-spacing: -0.045em;
+}
+
+.hero-description,
+.page-copy {
+  max-width: 720px;
+  color: #b9c7d9;
+}
+
+.hero-stat-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hero-stat,
+.stat-card,
+.skill-card,
+.summary-item,
+.result-card {
+  background: rgba(2, 6, 23, 0.54);
+  border-color: rgba(148, 163, 184, 0.12);
+}
+
+.button {
+  border-radius: 16px;
+  font-weight: 800;
+}
+
+.button.primary {
+  background: linear-gradient(135deg, #2563eb, #14b8a6);
+}
+
+.button.secondary {
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.conductor-shell {
+  grid-template-columns: 300px minmax(0, 1fr) 300px;
+}
+
+.conductor-full-width {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.conductor-grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.skill-card {
+  min-height: 150px;
+}
+
+.action-list button {
+  justify-content: center;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-hero,
+  .conductor-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-stat-row {
+    grid-template-columns: 1fr;
   }
 }

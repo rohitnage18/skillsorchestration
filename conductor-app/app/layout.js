@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth, signOut } from "../auth.js";
+import { db } from "../lib/db";
 import "./globals.css";
 
 export const metadata = {
@@ -9,6 +10,14 @@ export const metadata = {
 
 export default async function RootLayout({ children }) {
   const session = await auth();
+  const unreadCount = session?.user?.id
+    ? await db.notification.count({
+        where: {
+          userId: session.user.id,
+          read: false,
+        },
+      })
+    : 0;
 
   return (
     <html lang="en">
@@ -25,9 +34,16 @@ export default async function RootLayout({ children }) {
             <nav className="site-nav">
               <Link href="/">Home</Link>
               <Link href="/skills">Skills</Link>
-              <Link href="/registry">Registry</Link>
-              <Link href="/workflows">Workflows</Link>
-              {session?.user?.role === "ADMIN" ? <Link href="/admin">Admin</Link> : null}
+              {session?.user?.role === "ADMIN" ? (
+                <>
+                  <Link href="/registry">Registry</Link>
+                  <Link href="/workflows">Workflows</Link>
+                  <Link href="/admin" className="nav-link-with-badge">
+                    Admin
+                    {unreadCount > 0 ? <span className="nav-badge">{unreadCount}</span> : null}
+                  </Link>
+                </>
+              ) : null}
               {session?.user ? (
                 <form
                   action={async () => {

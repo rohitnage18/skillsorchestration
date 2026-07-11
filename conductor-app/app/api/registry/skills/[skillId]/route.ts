@@ -17,7 +17,7 @@ export async function GET(req: Request, context: RouteContext) {
     const { skillId } = await context.params;
     return jsonResponse(await getRegistrySkill(await getOwnerId(req.headers), skillId));
   } catch (error) {
-    return errorResponse(error, "Unable to load registry skill.", 404);
+    return errorResponse(error, "Unable to load registry skill.", getErrorStatus(error, 404));
   }
 }
 

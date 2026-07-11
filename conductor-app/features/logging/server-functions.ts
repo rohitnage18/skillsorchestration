@@ -75,6 +75,36 @@ export async function markNotificationAsRead(notificationId: string) {
 }
 
 /**
+ * Mark all notifications as read for a user
+ */
+export async function markAllNotificationsAsRead(userId: string) {
+  try {
+    const result = await notificationService.markAllAsRead(userId);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error("Failed to mark all notifications as read:", error);
+    return { success: false, error: "Failed to mark all notifications as read" };
+  }
+}
+
+/**
+ * Resend a notification email
+ * Admin only caller should enforce authorization before invoking this.
+ */
+export async function resendNotificationEmail(notificationId: string) {
+  try {
+    const notification = await notificationService.resendNotificationEmail(notificationId);
+    return { success: true, data: notification };
+  } catch (error) {
+    console.error("Failed to resend notification email:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to resend notification email",
+    };
+  }
+}
+
+/**
  * Get unread notification count
  */
 export async function getUnreadNotificationCount(userId: string) {

@@ -13,7 +13,7 @@ When they use a skill, the conductor app automatically saves/updates that user i
 - Optional: `skills-vscode-extension/` — VS Code sidebar.
 - Admin-provided `CONDUCTOR_URL`.
 - Admin-provided user id/email.
-- Optional admin-provided `SKILL_EVENTS_TOKEN`.
+- Required admin-provided `SKILL_EVENTS_TOKEN`.
 
 ## Install MCP Server
 
@@ -61,7 +61,7 @@ Set:
 ```
 
 The first time this user calls `list_skills`, `get_skill`, previews, or uses a skill,
-their `id`, `name`, and `email` are saved in the conductor database.
+their event is accepted only if an admin has already created/approved that user in the conductor database.
 
 ## What Users Can Do
 
@@ -73,11 +73,45 @@ their `id`, `name`, and `email` are saved in the conductor database.
 ## What Users Cannot Do
 
 Users should not be able to create, edit, or import skills unless their database role is `ADMIN`.
+Users should also not be able to create, edit, or delete workflows unless their database role is `ADMIN`.
 
 Admin-protected APIs check the database user role.
+All protected APIs also require `status = ACTIVE`.
+
+## Input Rules
+
+- Skill names can use letters, numbers, hyphens, and underscores only.
+- Skill file update requests can only target `SKILL.md` or `references/*.md`.
+- Skill file content is limited to `250000` bytes.
+- Event metadata should be small and shallow; oversized metadata is rejected by the conductor app.
+
+If a normal user tries to create, import, or edit a skill from the UI, the app creates a
+pending approval request instead of applying the change immediately.
+
+Normal users can:
+
+- List/read skills.
+- Run skill validation/use actions.
+- List/read/execute workflows they can access.
+- Mark their own notifications as read.
+- Submit skill change requests for admin approval.
+
+## Skill Approval Flow
+
+Users can request:
+
+- `SKILL_CREATE`
+- `SKILL_IMPORT`
+- `SKILL_FILE_UPDATE`
+
+The request is saved in the database as `SkillChangeRequest` with `status = PENDING`.
+An admin must approve it before the skill files or imported workspace are changed.
 
 ## Current Auth Status
 
-The project currently uses `x-user-id` / configured MCP user env as a temporary identity bridge.
+The Conductor browser app uses Google/GitHub login sessions.
+MCP and VS Code run outside that browser session, so they send user identity headers plus
+the required `SKILL_EVENTS_TOKEN`.
 
-Real login/session auth is still the next production step.
+Important: the token is not enough by itself. Your `MCP_USER_ID` must match an approved
+`ACTIVE` user record in Prisma.

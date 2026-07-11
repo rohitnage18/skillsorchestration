@@ -4,5 +4,5 @@
   "skillsLibrary.userId": "user-1",
   "skillsLibrary.userName": "User One",
   "skillsLibrary.userEmail": "user1@example.com",
-  "skillsLibrary.eventToken": ""
+  "skillsLibrary.eventToken": "replace-with-admin-provided-token"
 }

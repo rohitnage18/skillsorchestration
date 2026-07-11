@@ -53,7 +53,7 @@ Set these environment variables in the MCP client/server config:
 }
 ```
 
-Optional, if `SKILL_EVENTS_TOKEN` is set in `conductor-app/.env`:
+Required:
 
 ```json
 {

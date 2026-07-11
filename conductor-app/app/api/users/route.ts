@@ -8,6 +8,7 @@ const upsertUserSchema = z.object({
   email: z.string().trim().email(),
   name: z.string().trim().min(1).optional(),
   role: z.enum(["ADMIN", "USER"]).default("USER"),
+  status: z.enum(["PENDING", "ACTIVE", "DISABLED"]).default("ACTIVE"),
 });
 
 export async function GET(request: NextRequest) {
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
         email: true,
         name: true,
         role: true,
+        status: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -47,18 +49,21 @@ export async function POST(request: NextRequest) {
         email: input.email,
         name: input.name ?? null,
         role: input.role,
+        status: input.status,
       },
       create: {
         id: input.id,
         email: input.email,
         name: input.name ?? null,
         role: input.role,
+        status: input.status,
       },
       select: {
         id: true,
         email: true,
         name: true,
         role: true,
+        status: true,
         createdAt: true,
         updatedAt: true,
       },

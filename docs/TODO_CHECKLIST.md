@@ -29,7 +29,7 @@
 
 - [x] Choose one notification model as the source of truth.
 - [x] Prefer the existing `conductor-app/prisma/schema.prisma` `Notification` model unless send-attempt history needs a separate table.
-- [ ] Decide whether to add `NotificationDeliveryLog` or extend `Notification` with `emailError`, `emailStatus`, and retry fields.
+- [x] Decide whether to add `NotificationDeliveryLog` or extend `Notification` with `emailError`, `emailStatus`, and retry fields.
 - [x] Remove or clearly archive root-level template files after their useful code is merged.
 - [x] Update `docs/SETUP.md` so it reflects the actual conductor app implementation, not old copy/paste templates.
 
@@ -40,6 +40,7 @@
 - [x] Support `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `FROM_EMAIL`.
 - [x] Use admin users from the database as email recipients.
 - [x] Record failed email attempts in server logs without breaking the original user action.
+- [x] Store email delivery state in Prisma with `emailStatus`, `emailError`, `retryCount`, and `lastAttemptAt`.
 - [x] Avoid marking all notifications as `emailSent: true` if one admin email fails.
 - [x] Add safe HTML escaping for actor names, resource names, file paths, and metadata values.
 - [x] Add concise email subjects for `skill:import`, `skill:file:update`, `skill:use`, and registry operations.
@@ -61,9 +62,9 @@
 - [x] Treat conductor test/run (`POST /api/skills/[skillName]/run`) as `skill:test`.
 - [x] Treat registry execution (`POST /api/registry/skills/[skillId]/execute`) as `skill:execute`.
 - [x] Add `logAction()` to `executeRegistrySkill()` after successful execution.
-- [ ] Add failure logging for failed execution attempts if admin wants visibility into broken skills.
+- [x] Add failure logging for failed execution attempts if admin wants visibility into broken skills.
 - [ ] Decide whether VS Code "insert at cursor" counts as `skill:use`.
-- [ ] Add throttling or deduplication if preview/read operations become noisy.
+- [x] Add throttling or deduplication if preview/read operations become noisy.
 
 ## Phase 5: VS Code Integration For Notifications
 
@@ -82,18 +83,41 @@
 - [x] Create `POST /api/skill-events`.
 - [x] Validate event payload with `zod`.
 - [x] Accept event types: `skill:import`, `skill:use`, `skill:preview`, `skill:file:update`, `skill:create`, `skill:test`, and `skill:execute`.
-- [x] Support optional bearer token auth with `SKILL_EVENTS_TOKEN`.
+- [x] Require bearer token auth with `SKILL_EVENTS_TOKEN`.
 - [x] Store `source` metadata such as `conductor-ui`, `vscode-extension`, `mcp-server`, or `filesystem-watcher`.
 - [x] Return success even if email delivery fails.
 
 ## Phase 7: Security And Authorization
 
-- [ ] Replace temporary `x-user-id`, browser `localStorage`, and `dev-user` fallback with real session/user resolution.
+- [x] Add production startup validation for required auth, OAuth, admin, and event-token env vars.
+- [x] Require `https://` `AUTH_URL` and strong non-placeholder secrets in production.
+- [x] Disable first-user auto-admin in production unless explicitly enabled.
+- [x] Use timing-safe comparison for `SKILL_EVENTS_TOKEN`.
+- [x] Add global production security headers through Next middleware.
+- [x] Replace browser `x-user-id`, `localStorage`, and `dev-user` fallback with real session/user resolution.
+- [x] Add `User.status` approval flow with `PENDING`, `ACTIVE`, and `DISABLED`.
+- [x] Require admin approval before new OAuth users can use protected APIs.
+- [x] Reject unknown/pending/disabled MCP and VS Code event users.
+- [x] Add admin approve, disable, and reactivate controls for users.
 - [x] Add admin authorization checks to `/api/audit-logs`.
+- [x] Add admin authorization checks to skill create/import/edit/delete routes.
+- [x] Add admin authorization checks to registry skill create/update/delete routes.
+- [x] Add admin authorization checks to workflow create/update/delete routes.
+- [x] Add user authorization checks to skill test/use, registry execution, workflow execution, and user notifications.
+- [x] Add `SkillChangeRequest` model for skill approval flow.
+- [x] Add skill change request create/list/approve/reject APIs.
+- [x] Route user skill create/import/file-edit attempts into pending approval requests.
+- [x] Add pending approval controls to admin dashboard.
+- [x] Log denied role checks as `auth:role-denied` audit records.
+- [x] Log admin role changes as `user:role:update` audit records.
 - [x] Add admin authorization checks to destructive notification cleanup endpoints.
 - [x] Ensure users cannot mark another user's notification as read.
 - [x] Prevent path traversal for all filesystem skill operations.
 - [x] Restrict file edits to `SKILL.md` and `references/*.md` unless broader editing is intentional.
+- [x] Normalize and validate skill names before filesystem/database use.
+- [x] Add file content size limits for skill edits and approval requests.
+- [x] Bound external skill-event metadata size/depth before audit logging and email rendering.
+- [x] Sanitize search/filter inputs for filesystem skill listing.
 - [x] Avoid emailing full sensitive file contents; email only metadata and links.
 
 ## Phase 7A: Context Workflow
@@ -107,12 +131,12 @@
 
 ## Phase 8: Admin UX
 
-- [ ] Add admin page for recent audit logs.
-- [ ] Add admin page for notifications and email delivery status.
-- [ ] Add filters by event type, user, skill, source, and date.
-- [ ] Add unread notification badge in the conductor UI.
-- [ ] Add "mark as read" and "mark all as read" actions.
-- [ ] Add resend email action for failed delivery attempts if delivery logs are stored.
+- [x] Add admin page for recent audit logs.
+- [x] Add admin page for notifications and email delivery status.
+- [x] Add filters by event type, user, skill, source, and date.
+- [x] Add unread notification badge in the conductor UI.
+- [x] Add "mark as read" and "mark all as read" actions.
+- [x] Add resend email action for failed delivery attempts if delivery logs are stored.
 
 ## Phase 9: Testing And Validation
 

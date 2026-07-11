@@ -46,12 +46,10 @@ Integrate logging into your existing operations:
 
 ## Phase 3: Testing
 
-- [ ] **3.0 - Seed Dev Users**
-  ```bash
-  curl -X POST http://localhost:3000/api/dev/seed-users
-  ```
-  This creates `dev-admin` as `ADMIN` and `user-1` through `user-5` as `USER`.
-  Use the returned `x-user-id` and `x-user-email` headers from VS Code requests.
+- [ ] **3.0 - Configure Users**
+  - Sign in through `/login` to create the first browser user.
+  - Set the admin user's `role` to `ADMIN` if it was not promoted through `ADMIN_EMAILS`.
+  - Configure MCP/VS Code users with `x-user-id`, `x-user-email`, and `SKILL_EVENTS_TOKEN`.
 
 - [ ] **3.1 - Manual Testing**
   - [ ] Create a test skill and verify audit log created

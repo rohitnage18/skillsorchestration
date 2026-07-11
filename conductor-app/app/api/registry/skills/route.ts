@@ -11,7 +11,7 @@ export async function GET(req: Request) {
 
     return jsonResponse(await listRegistrySkills(ownerId, query));
   } catch (error) {
-    return errorResponse(error, "Unable to list registry skills.");
+    return errorResponse(error, "Unable to list registry skills.", getErrorStatus(error));
   }
 }
 

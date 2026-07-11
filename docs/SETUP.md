@@ -56,13 +56,9 @@ Then create or update at least one admin user:
 UPDATE "User" SET role = 'ADMIN' WHERE email = 'admin@example.com';
 ```
 
-For the current local UI, set the browser user id to an admin user's `id`:
-
-```js
-localStorage.setItem("skillsConductorUserId", "admin-user-id")
-```
-
-API write routes read the same value through the `x-user-id` header. Until full auth is added, this is the temporary identity bridge.
+For the current local UI, sign in through `/login`.
+Browser API routes resolve the user from the Auth.js session.
+MCP and VS Code event reporting still send user identity headers, but those calls must also include `SKILL_EVENTS_TOKEN`.
 
 ## Run Locally
 
