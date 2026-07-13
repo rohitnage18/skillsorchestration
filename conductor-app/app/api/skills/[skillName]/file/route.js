@@ -1,4 +1,10 @@
 import { loadFile, saveFile } from "../../../../../lib/skillStorage.js";
+import { getErrorStatus, requireAdmin } from "../../../../../lib/auth.js";
+import {
+  assertSkillFileContent,
+  normalizeEditableSkillPath,
+  normalizeSkillNameInput,
+} from "../../../../../lib/inputSafety.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -10,12 +16,10 @@ function json(data, status = 200) {
 export async function GET(req, { params }) {
   try {
     const { skillName } = await params;
+    const safeSkillName = normalizeSkillNameInput(skillName);
     const url = new URL(req.url);
-    const filePath = url.searchParams.get("path");
-    if (!filePath) {
-      return json({ error: "path parameter is required" }, 400);
-    }
-    const content = loadFile(skillName, filePath);
+    const filePath = normalizeEditableSkillPath(url.searchParams.get("path"));
+    const content = loadFile(safeSkillName, filePath);
     return json({ content });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to read file";
@@ -25,20 +29,18 @@ export async function GET(req, { params }) {
 
 export async function POST(req, { params }) {
   try {
+    const user = await requireAdmin(req.headers);
     const { skillName } = await params;
+    const safeSkillName = normalizeSkillNameInput(skillName);
     const body = await req.json();
-    const filePath = String(body.path || "").trim();
-    const content = String(body.content || "");
+    const filePath = normalizeEditableSkillPath(body.path);
+    const content = assertSkillFileContent(body.content);
 
-    if (!filePath) {
-      return json({ error: "path is required" }, 400);
-    }
-
-    saveFile(skillName, filePath, content);
+    await saveFile(safeSkillName, filePath, content, user.id);
     return json({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to save file";
     const status = message.includes("outside") ? 400 : 500;
-    return json({ error: message }, status);
+    return json({ error: message }, getErrorStatus(error, status));
   }
 }

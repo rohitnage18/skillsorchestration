@@ -5,6 +5,12 @@ import { useEffect, useState } from "react";
 
 const initialToast = { visible: false, message: "", type: "info" };
 
+function getRequestHeaders() {
+  return {
+    "Content-Type": "application/json",
+  };
+}
+
 export default function SkillsHome() {
   const [skills, setSkills] = useState([]);
   const [query, setQuery] = useState("");
@@ -47,10 +53,15 @@ export default function SkillsHome() {
     try {
       const res = await fetch("/api/skills", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getRequestHeaders(),
         body: JSON.stringify({ skillName, description }),
       });
       const data = await res.json();
+      if (res.status === 403) {
+        await requestSkillCreate(skillName, description);
+        setToast({ visible: true, message: `Approval requested for ${skillName}`, type: "success" });
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Unable to create skill");
       setToast({ visible: true, message: `Created ${data.skillName}`, type: "success" });
       setQuery("");
@@ -58,6 +69,17 @@ export default function SkillsHome() {
     } catch (error) {
       setToast({ visible: true, message: error.message, type: "error" });
     }
+  };
+
+  const requestSkillCreate = async (skillName, description) => {
+    const res = await fetch("/api/skill-change-requests", {
+      method: "POST",
+      headers: getRequestHeaders(),
+      body: JSON.stringify({ type: "SKILL_CREATE", skillName, description }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Unable to request skill creation");
+    return data;
   };
 
   const searchSkills = (value) => {
@@ -77,12 +99,12 @@ export default function SkillsHome() {
       <main className="conductor-main conductor-main-full">
         <div className="page-header conductor-header">
           <div>
-            <p className="eyebrow">Skill IDE</p>
-            <h1>Find, validate, and stage skills in one polished view.</h1>
-            <p className="page-copy">Search skills, open workspaces, and review import readiness.</p>
+            <p className="eyebrow">Skills</p>
+            <h1>Browse approved skills.</h1>
+            <p className="page-copy">Open a skill to validate it. Create/import requests go through admin approval.</p>
           </div>
           <button className="button primary" onClick={createSkill}>
-            Create skill
+            Request new skill
           </button>
         </div>
 
@@ -96,8 +118,8 @@ export default function SkillsHome() {
             <strong>{importedCount}</strong>
           </div>
           <div className="stat-card">
-            <p>Hidden markdown</p>
-            <strong>Yes</strong>
+            <p>Approval flow</p>
+            <strong>On</strong>
           </div>
         </div>
 
@@ -125,11 +147,10 @@ export default function SkillsHome() {
                   <div>
                     <h2>{skill.name}</h2>
                   </div>
-                  <span className="skill-chip">Open</span>
+                  <span className="skill-chip">View</span>
                 </div>
                 <div className="skill-card-footer">
-                  <span className="skill-pill">{skill.importedTo ? "Imported" : "Ready to import"}</span>
-                  <span className="skill-pill secondary">Hidden markdown</span>
+                  <span className="skill-pill">{skill.importedTo ? "Imported" : "Available"}</span>
                 </div>
               </Link>
             ))

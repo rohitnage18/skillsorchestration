@@ -1,4 +1,5 @@
 import { listSkillFiles, loadSkill, loadSkillState } from "../../../../../lib/skillStorage.js";
+import { normalizeSkillNameInput } from "../../../../../lib/inputSafety.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -10,9 +11,10 @@ function json(data, status = 200) {
 export async function GET(req, { params }) {
   try {
     const { skillName } = await params;
-    const files = listSkillFiles(skillName);
-    const skill = loadSkill(skillName);
-    const state = loadSkillState(skillName);
+    const safeSkillName = normalizeSkillNameInput(skillName);
+    const files = listSkillFiles(safeSkillName);
+    const skill = loadSkill(safeSkillName);
+    const state = loadSkillState(safeSkillName);
     const fileCount = files.length;
     const referenceCount = files.filter((file) => file.type === "reference").length;
     const hasSkillFile = files.some((file) => file.path === "SKILL.md");
@@ -26,7 +28,7 @@ export async function GET(req, { params }) {
       importedAt: state.importedAt,
       lastUpdated,
       skillInfo: {
-        name: skillName,
+        name: safeSkillName,
         description: skill.skill.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]?.match(/^description:\s*(.+)$/m)?.[1]?.trim() || "No description",
       },
     });

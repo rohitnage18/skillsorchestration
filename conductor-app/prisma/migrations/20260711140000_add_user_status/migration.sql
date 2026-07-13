@@ -1,0 +1,9 @@
+CREATE TYPE "UserStatus" AS ENUM ('PENDING', 'ACTIVE', 'DISABLED');
+
+ALTER TABLE "User"
+ADD COLUMN "status" "UserStatus" NOT NULL DEFAULT 'ACTIVE';
+
+ALTER TABLE "User"
+ALTER COLUMN "status" SET DEFAULT 'PENDING';
+
+CREATE INDEX "User_status_idx" ON "User"("status");

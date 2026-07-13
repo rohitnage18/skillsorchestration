@@ -116,6 +116,15 @@ efficiency — is the right one; it can be revisited later if it ever becomes a 
 
 ## Local testing without a client
 
+## Optional conductor audit reporting
+
+Set `CONDUCTOR_URL`, `MCP_USER_ID`, and `MCP_USER_EMAIL` in your MCP config to report
+`list_skills` as `skill:list` and `get_skill` as `skill:read` to the conductor app.
+When SMTP is configured and an admin user exists, `get_skill` creates audit logs,
+notifications, and admin email. `list_skills` is stored in the database without email.
+
+See `../docs/USERS_AND_SKILL_EVENTS.md` for the full user setup flow.
+
 You can exercise the server directly by piping raw JSON-RPC requests into it:
 
 ```bash

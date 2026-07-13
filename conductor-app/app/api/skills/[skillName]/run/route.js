@@ -1,4 +1,6 @@
-import { listSkillFiles, loadSkill } from "../../../../../lib/skillStorage.js";
+import { listSkillFiles, loadSkill, logSkillActivity } from "../../../../../lib/skillStorage.js";
+import { getErrorStatus, requireUser } from "../../../../../lib/auth.js";
+import { normalizeSkillNameInput } from "../../../../../lib/inputSafety.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -47,12 +49,38 @@ function simulateSkillTest(skillName) {
 }
 
 export async function POST(req, { params }) {
+  let user = null;
+  let safeSkillName = "";
   try {
     const { skillName } = await params;
-    const result = simulateSkillTest(skillName);
+    safeSkillName = normalizeSkillNameInput(skillName);
+    user = await requireUser(req.headers);
+    const result = simulateSkillTest(safeSkillName);
+    await logSkillActivity({
+      userId: user.id,
+      action: "skill:test",
+      resourceId: safeSkillName,
+      metadata: {
+        skillName: safeSkillName,
+        status: result.status,
+        source: "conductor-ui",
+      },
+    });
     return json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to run skill test";
-    return json({ error: message }, 500);
+    if (user?.id && safeSkillName) {
+      await logSkillActivity({
+        userId: user.id,
+        action: "skill:test:fail",
+        resourceId: safeSkillName,
+        metadata: {
+          skillName: safeSkillName,
+          error: message,
+          source: "conductor-ui",
+        },
+      });
+    }
+    return json({ error: message }, getErrorStatus(error, 500));
   }
 }

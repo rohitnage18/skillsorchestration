@@ -3,9 +3,7 @@ import { Prisma } from "../../lib/generated/prisma/client";
 import { CreateSkillInput, UpdateSkillInput } from "./schemas";
 import { runServerFunctionSkill } from "./server-functions";
 import { logAction } from "../logging/server-functions";
-
-const DEFAULT_OWNER_ID = "dev-user";
-const DEFAULT_OWNER_EMAIL = "dev-user@local.conductor";
+import { requireUser } from "../../lib/auth.js";
 
 function slugify(value: string) {
   return value
@@ -15,8 +13,9 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export function getOwnerId(headers: Headers) {
-  return headers.get("x-user-id")?.trim() || DEFAULT_OWNER_ID;
+export async function getOwnerId(headers: Headers) {
+  const user = await requireUser(headers);
+  return user.id;
 }
 
 async function ensureUser(ownerId: string) {
@@ -25,7 +24,7 @@ async function ensureUser(ownerId: string) {
     update: {},
     create: {
       id: ownerId,
-      email: ownerId === DEFAULT_OWNER_ID ? DEFAULT_OWNER_EMAIL : `${ownerId}@local.conductor`,
+      email: `${ownerId}@local.conductor`,
     },
   });
 }
@@ -158,39 +157,75 @@ export async function deleteRegistrySkill(ownerId: string, skillId: string) {
 export async function executeRegistrySkill(ownerId: string, skillId: string, input: unknown) {
   const skill = await getRegistrySkill(ownerId, skillId);
 
-  if (skill.type === "SERVER_FUNCTION") {
-    if (!skill.functionKey) {
-      throw new Error("Skill is missing functionKey.");
+  try {
+    if (skill.type === "SERVER_FUNCTION") {
+      if (!skill.functionKey) {
+        throw new Error("Skill is missing functionKey.");
+      }
+
+      const result = {
+        skillId: skill.id,
+        output: await runServerFunctionSkill(skill.functionKey, input),
+      };
+
+      await logAction({
+        userId: ownerId,
+        action: "skill:execute",
+        resource: "skill",
+        resourceId: skill.id,
+        metadata: { ownerId, skillName: skill.name, source: "registry" },
+      });
+
+      return result;
     }
 
-    return {
+    if (!skill.endpointUrl) {
+      throw new Error("Skill is missing endpointUrl.");
+    }
+
+    const response = await fetch(skill.endpointUrl, {
+      method: skill.method ?? "POST",
+      headers: {
+        "content-type": "application/json",
+        ...((skill.headers as Record<string, string> | null) ?? {}),
+      },
+      body: ["GET", "DELETE"].includes(skill.method ?? "") ? undefined : JSON.stringify(input),
+    });
+
+    const text = await response.text();
+    const output = text ? JSON.parse(text) : null;
+
+    if (!response.ok) {
+      throw new Error(`Skill endpoint failed with ${response.status}: ${text}`);
+    }
+
+    const result = {
       skillId: skill.id,
-      output: await runServerFunctionSkill(skill.functionKey, input),
+      output,
     };
+
+    await logAction({
+      userId: ownerId,
+      action: "skill:execute",
+      resource: "skill",
+      resourceId: skill.id,
+      metadata: { ownerId, skillName: skill.name, source: "registry" },
+    });
+
+    return result;
+  } catch (error) {
+    await logAction({
+      userId: ownerId,
+      action: "skill:execute:fail",
+      resource: "skill",
+      resourceId: skill.id,
+      metadata: {
+        ownerId,
+        skillName: skill.name,
+        source: "registry",
+        error: error instanceof Error ? error.message : "Skill execution failed.",
+      },
+    });
+    throw error;
   }
-
-  if (!skill.endpointUrl) {
-    throw new Error("Skill is missing endpointUrl.");
-  }
-
-  const response = await fetch(skill.endpointUrl, {
-    method: skill.method ?? "POST",
-    headers: {
-      "content-type": "application/json",
-      ...((skill.headers as Record<string, string> | null) ?? {}),
-    },
-    body: ["GET", "DELETE"].includes(skill.method ?? "") ? undefined : JSON.stringify(input),
-  });
-
-  const text = await response.text();
-  const output = text ? JSON.parse(text) : null;
-
-  if (!response.ok) {
-    throw new Error(`Skill endpoint failed with ${response.status}: ${text}`);
-  }
-
-  return {
-    skillId: skill.id,
-    output,
-  };
 }

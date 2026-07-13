@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUnreadNotificationCount } from "../../../../features/logging/server-functions";
+import { getErrorStatus, requireUser } from "../../../../lib/auth.js";
 
 /**
  * GET /api/notifications/unread-count
@@ -7,12 +8,9 @@ import { getUnreadNotificationCount } from "../../../../features/logging/server-
  */
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id");
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const user = await requireUser(request.headers);
 
-    const result = await getUnreadNotificationCount(userId);
+    const result = await getUnreadNotificationCount(user.id);
 
     if (!result.success) {
       return NextResponse.json(result, { status: 500 });
@@ -21,6 +19,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     console.error("Unread count endpoint error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: getErrorStatus(error, 500) }
+    );
   }
 }

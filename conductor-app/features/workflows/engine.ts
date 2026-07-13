@@ -2,6 +2,7 @@ import { Prisma } from "../../lib/generated/prisma/client";
 import { db } from "../../lib/db";
 import { executeRegistrySkill } from "../skills/service";
 import { WorkflowDefinition, WorkflowEdge, WorkflowNode, workflowDefinitionSchema } from "./schemas";
+import { logAction } from "../logging/server-functions";
 
 type ExecutionContext = {
   workflowInput: unknown;
@@ -171,6 +172,19 @@ export async function executeWorkflow(ownerId: string, workflowId: string, input
     },
   });
 
+  await logAction({
+    userId: ownerId,
+    action: "workflow:run:start",
+    resource: "workflow_run",
+    resourceId: run.id,
+    metadata: {
+      ownerId,
+      workflowId: workflow.id,
+      workflowName: workflow.name,
+      source: "workflow-engine",
+    },
+  });
+
   const context: ExecutionContext = {
     workflowInput: input,
     nodeOutputs: {},
@@ -223,7 +237,7 @@ export async function executeWorkflow(ownerId: string, workflowId: string, input
     const outputNode = definition.nodes.find((node) => node.type === "output");
     const output = outputNode ? context.nodeOutputs[outputNode.id] : context.nodeOutputs;
 
-    return db.workflowRun.update({
+    const completedRun = await db.workflowRun.update({
       where: { id: run.id },
       data: {
         status: "SUCCEEDED",
@@ -232,6 +246,21 @@ export async function executeWorkflow(ownerId: string, workflowId: string, input
       },
       include: { nodeRuns: true },
     });
+
+    await logAction({
+      userId: ownerId,
+      action: "workflow:run:complete",
+      resource: "workflow_run",
+      resourceId: run.id,
+      metadata: {
+        ownerId,
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        source: "workflow-engine",
+      },
+    });
+
+    return completedRun;
   } catch (error) {
     await db.workflowRun.update({
       where: { id: run.id },
@@ -239,6 +268,20 @@ export async function executeWorkflow(ownerId: string, workflowId: string, input
         status: "FAILED",
         error: { message: error instanceof Error ? error.message : "Workflow failed." },
         completedAt: new Date(),
+      },
+    });
+
+    await logAction({
+      userId: ownerId,
+      action: "workflow:run:fail",
+      resource: "workflow_run",
+      resourceId: run.id,
+      metadata: {
+        ownerId,
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        source: "workflow-engine",
+        error: error instanceof Error ? error.message : "Workflow failed.",
       },
     });
 

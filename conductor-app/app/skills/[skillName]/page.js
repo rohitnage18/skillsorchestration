@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 
 const initialToast = { visible: false, message: "", type: "info" };
 
+function getRequestHeaders() {
+  return {
+    "Content-Type": "application/json",
+  };
+}
+
 export default function SkillEditor({ params }) {
   const router = useRouter();
   const { skillName: encodedSkillName } = use(params);
@@ -52,10 +58,15 @@ export default function SkillEditor({ params }) {
     try {
       const res = await fetch("/api/import", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getRequestHeaders(),
         body: JSON.stringify({ skillName, targetName }),
       });
       const data = await res.json();
+      if (res.status === 403) {
+        await requestSkillImport(skillName, targetName);
+        showToast(`Approval requested to import ${skillName}`, "success");
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Unable to import skill");
       showToast(`Imported to ${data.path}`, "success");
       setSummary((prev) => ({ ...prev, importedTo: data.path }));
@@ -64,11 +75,23 @@ export default function SkillEditor({ params }) {
     }
   };
 
+  const requestSkillImport = async (skillName, targetName) => {
+    const res = await fetch("/api/skill-change-requests", {
+      method: "POST",
+      headers: getRequestHeaders(),
+      body: JSON.stringify({ type: "SKILL_IMPORT", skillName, targetName }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Unable to request skill import");
+    return data;
+  };
+
   const runTest = async () => {
     setIsTesting(true);
     try {
       const res = await fetch(`/api/skills/${encodeURIComponent(skillName)}/run`, {
         method: "POST",
+        headers: getRequestHeaders(),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Skill test failed");
@@ -112,13 +135,13 @@ export default function SkillEditor({ params }) {
         </div>
 
         <div className="nav-card actions-card">
-          <p className="eyebrow">Actions</p>
+          <p className="eyebrow">Primary actions</p>
           <div className="action-list">
-            <button className="button secondary full-width" onClick={importSkill} disabled={isLoading}>
-              Import skill
-            </button>
             <button className="button primary full-width" onClick={runTest} disabled={isLoading || isTesting}>
               {isTesting ? "Testing..." : "Run validation"}
+            </button>
+            <button className="button secondary full-width" onClick={importSkill} disabled={isLoading}>
+              Request import
             </button>
             <button className="button secondary full-width" onClick={() => router.push("/skills")}>Back to skills</button>
           </div>
@@ -128,16 +151,9 @@ export default function SkillEditor({ params }) {
       <main className="conductor-main">
         <div className="page-header conductor-header">
           <div>
-            <p className="eyebrow">Skill workspace</p>
+            <p className="eyebrow">Skill detail</p>
             <h1>{skillName}</h1>
-            <p className="page-copy">Validate the selected skill and review import readiness in one place.</p>
-          </div>
-          <div className="header-actions">
-            <button className="button secondary" onClick={() => router.push("/skills")}>Back</button>
-            <button className="button secondary" onClick={importSkill} disabled={isLoading}>Import</button>
-            <button className="button primary" onClick={runTest} disabled={isLoading || isTesting}>
-              {isTesting ? "Testing..." : "Run test"}
-            </button>
+            <p className="page-copy">Validate this skill and request import only when needed.</p>
           </div>
         </div>
 
@@ -191,8 +207,8 @@ export default function SkillEditor({ params }) {
             <span>{summary?.importedTo ? `Imported: ${summary.importedTo}` : "Not imported"}</span>
           </div>
           <div className="activity-item">
-            <p>Next step</p>
-            <span>Run validation before import</span>
+            <p>Recommended next step</p>
+            <span>{testResult ? "Request import if this skill is needed." : "Run validation first."}</span>
           </div>
         </div>
       </aside>

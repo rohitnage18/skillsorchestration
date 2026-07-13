@@ -1,0 +1,18 @@
+{
+  "servers": {
+    "skills": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/skills-mcp-server/build/index.js"],
+      "env": {
+        "SKILLS_PATH": "${workspaceFolder}/skills",
+        "PROJECT_PATH": "${workspaceFolder}",
+        "CONDUCTOR_URL": "http://localhost:3000",
+        "MCP_USER_ID": "user-1",
+        "MCP_USER_NAME": "User One",
+        "MCP_USER_EMAIL": "user1@example.com",
+        "SKILL_EVENTS_TOKEN": "replace-with-admin-provided-token"
+      }
+    }
+  }
+}

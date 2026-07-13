@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getNotifications,
   markNotificationAsRead,
+  markAllNotificationsAsRead,
   clearOldNotifications,
 } from "../../../features/logging/server-functions";
+import { db } from "../../../lib/db";
+import { getErrorStatus, requireAdmin, requireUser } from "../../../lib/auth.js";
 
 /**
  * GET /api/notifications
@@ -12,14 +15,7 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Add user authentication check
-    const userId = request.headers.get("x-user-id");
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const user = await requireUser(request.headers);
 
     const searchParams = request.nextUrl.searchParams;
     const read = searchParams.get("read")
@@ -29,7 +25,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    const result = await getNotifications(userId, {
+    const result = await getNotifications(user.id, {
       read,
       type: type as any,
       limit,
@@ -44,8 +40,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Notifications endpoint error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: getErrorStatus(error, 500) }
     );
   }
 }
@@ -56,21 +52,37 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get("x-user-id");
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const user = await requireUser(request.headers);
 
     const body = await request.json();
-    const { notificationId } = body;
+    const { notificationId, markAll } = body;
+
+    if (markAll === true) {
+      const result = await markAllNotificationsAsRead(user.id);
+      if (!result.success) {
+        return NextResponse.json(result, { status: 500 });
+      }
+      return NextResponse.json(result);
+    }
 
     if (!notificationId) {
       return NextResponse.json(
         { error: "notificationId is required" },
         { status: 400 }
+      );
+    }
+
+    const notification = await db.notification.findFirst({
+      where: {
+        id: notificationId,
+        userId: user.id,
+      },
+    });
+
+    if (!notification) {
+      return NextResponse.json(
+        { error: "Notification not found" },
+        { status: 404 }
       );
     }
 
@@ -84,8 +96,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Mark as read endpoint error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: getErrorStatus(error, 500) }
     );
   }
 }
@@ -98,7 +110,7 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    // TODO: Add admin authorization check
+    await requireAdmin(request.headers);
     const searchParams = request.nextUrl.searchParams;
     const olderThanDays = parseInt(searchParams.get("olderThanDays") || "90");
 
@@ -112,8 +124,8 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error("Clear notifications endpoint error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: getErrorStatus(error, 500) }
     );
   }
 }

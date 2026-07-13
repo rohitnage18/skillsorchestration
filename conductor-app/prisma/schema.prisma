@@ -12,6 +12,7 @@ model User {
   email     String   @unique
   name      String?
   role      UserRole @default(USER)
+  status    UserStatus @default(PENDING)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -20,13 +21,22 @@ model User {
   runs          WorkflowRun[]
   auditLogs     AuditLog[]
   notifications Notification[]
+  skillChangeRequests         SkillChangeRequest[] @relation("SkillChangeRequester")
+  reviewedSkillChangeRequests SkillChangeRequest[] @relation("SkillChangeReviewer")
 
   @@index([role])
+  @@index([status])
 }
 
 enum UserRole {
   ADMIN
   USER
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  DISABLED
 }
 
 model Skill {
@@ -175,8 +185,12 @@ model Notification {
   auditLogId String?
   
   // Email delivery tracking
-  emailSent Boolean              @default(false)
-  sentAt    DateTime?
+  emailSent     Boolean             @default(false)
+  emailStatus   EmailDeliveryStatus @default(PENDING)
+  emailError    String?
+  retryCount    Int                 @default(0)
+  lastAttemptAt DateTime?
+  sentAt        DateTime?
   
   // Notification status
   read      Boolean              @default(false)
@@ -189,7 +203,45 @@ model Notification {
   @@index([userId])
   @@index([type])
   @@index([emailSent])
+  @@index([emailStatus])
+  @@index([lastAttemptAt])
   @@index([createdAt])
+}
+
+model SkillChangeRequest {
+  id            String                    @id @default(cuid())
+  requestedById String
+  reviewedById  String?
+  type          SkillChangeRequestType
+  status        SkillChangeRequestStatus  @default(PENDING)
+  resourceId    String
+  payload       Json
+  result        Json?
+  rejectionReason String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  reviewedAt    DateTime?
+
+  requestedBy User  @relation("SkillChangeRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  reviewedBy  User? @relation("SkillChangeReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([requestedById])
+  @@index([reviewedById])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum SkillChangeRequestType {
+  SKILL_CREATE
+  SKILL_IMPORT
+  SKILL_FILE_UPDATE
+}
+
+enum SkillChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum NotificationType {
@@ -203,4 +255,12 @@ enum NotificationType {
   WORKFLOW_RUN_COMPLETED
   WORKFLOW_RUN_FAILED
   USER_ACTION
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+  NOT_CONFIGURED
 }

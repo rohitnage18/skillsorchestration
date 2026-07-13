@@ -16,6 +16,14 @@ import { SkillsTreeDataProvider, SkillTreeNode } from "./skillsTreeProvider";
 
 const PREVIEW_SCHEME = "skills-preview";
 
+type SkillEventAction = "skill:preview" | "skill:use" | "skill:file:update";
+
+interface SkillEventInput {
+  action: SkillEventAction;
+  skillName: string;
+  metadata?: Record<string, unknown>;
+}
+
 /** Reads the configured skills folder path, expanding ~ for convenience. */
 function getConfiguredSkillsPath(): string {
   const raw = vscode.workspace.getConfiguration("skillsLibrary").get<string>("skillsPath", "");
@@ -24,6 +32,81 @@ function getConfiguredSkillsPath(): string {
     return path.join(home, raw.slice(1));
   }
   return raw;
+}
+
+function getConductorUrl(): string {
+  return vscode.workspace
+    .getConfiguration("skillsLibrary")
+    .get<string>("conductorUrl", "")
+    .trim()
+    .replace(/\/+$/, "");
+}
+
+function getConfiguredUserId(): string {
+  return (
+    vscode.workspace.getConfiguration("skillsLibrary").get<string>("userId", "").trim() ||
+    process.env.USER ||
+    process.env.USERNAME ||
+    "vscode-user"
+  );
+}
+
+function getConfiguredUserEmail(userId: string): string {
+  return (
+    vscode.workspace.getConfiguration("skillsLibrary").get<string>("userEmail", "").trim() ||
+    (userId.includes("@") ? userId : `${userId}@local.conductor`)
+  );
+}
+
+function getConfiguredUserName(): string {
+  return vscode.workspace.getConfiguration("skillsLibrary").get<string>("userName", "").trim();
+}
+
+function getEventToken(): string {
+  return vscode.workspace.getConfiguration("skillsLibrary").get<string>("eventToken", "").trim();
+}
+
+function getSkillFileEvent(skillsPath: string, uri: vscode.Uri): SkillEventInput | undefined {
+  if (uri.scheme !== "file") {
+    return undefined;
+  }
+
+  const relativePath = path.relative(skillsPath, uri.fsPath).replace(/\\/g, "/");
+  if (relativePath.startsWith("../") || path.isAbsolute(relativePath)) {
+    return undefined;
+  }
+
+  const parts = relativePath.split("/");
+  const [skillName, firstChild, fileName] = parts;
+  if (!skillName) {
+    return undefined;
+  }
+
+  if (firstChild === "SKILL.md" && parts.length === 2) {
+    return {
+      action: "skill:file:update",
+      skillName,
+      metadata: {
+        filePath: "SKILL.md",
+        fileType: "skill",
+        source: "vscode-extension",
+      },
+    };
+  }
+
+  if (firstChild === "references" && parts.length === 3 && fileName?.endsWith(".md")) {
+    return {
+      action: "skill:file:update",
+      skillName,
+      metadata: {
+        filePath: `references/${fileName}`,
+        fileType: "reference",
+        source: "vscode-extension",
+      },
+    };
+  }
+
+  return undefined;
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -40,6 +123,56 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   const treeProvider = new SkillsTreeDataProvider(getConfiguredSkillsPath);
+  const outputChannel = vscode.window.createOutputChannel("Skills Library");
+  context.subscriptions.push(outputChannel);
+
+  async function reportSkillEvent(event: SkillEventInput): Promise<void> {
+    const conductorUrl = getConductorUrl();
+    if (!conductorUrl) {
+      return;
+    }
+
+    const userId = getConfiguredUserId();
+    const userName = getConfiguredUserName();
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      "x-user-id": userId,
+      "x-user-email": getConfiguredUserEmail(userId),
+    };
+    if (userName) {
+      headers["x-user-name"] = userName;
+    }
+    const token = getEventToken();
+    if (token) {
+      headers.authorization = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(`${conductorUrl}/api/skill-events`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          action: event.action,
+          skillName: event.skillName,
+          source: "vscode-extension",
+          metadata: event.metadata,
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        outputChannel.appendLine(
+          `Failed to report ${event.action} for ${event.skillName}: ${response.status} ${text}`
+        );
+      }
+    } catch (error) {
+      outputChannel.appendLine(
+        `Failed to report ${event.action} for ${event.skillName}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
 
   const treeView = vscode.window.createTreeView("skillsLibrary.tree", {
     treeDataProvider: treeProvider,
@@ -124,6 +257,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
       const doc = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(doc, { preview: true });
+
+      await reportSkillEvent({
+        action: "skill:preview",
+        skillName: node.kind === "skill" ? node.skill.name : node.skillName,
+        metadata: { filePath: title, source: "vscode-extension" },
+      });
     })
   );
 
@@ -148,6 +287,14 @@ export function activate(context: vscode.ExtensionContext): void {
         await editor.edit((editBuilder) => {
           editBuilder.insert(editor.selection.active, content);
         });
+        await reportSkillEvent({
+          action: "skill:use",
+          skillName: skill.name,
+          metadata: {
+            targetFile: editor.document.uri.fsPath,
+            source: "vscode-extension",
+          },
+        });
         vscode.window.showInformationMessage(`Inserted "${skill.name}" skill content.`);
       }
     )
@@ -168,7 +315,27 @@ export function activate(context: vscode.ExtensionContext): void {
     const watcher = vscode.workspace.createFileSystemWatcher(
       new vscode.RelativePattern(vscode.Uri.file(skillsPath), "**/*")
     );
-    const onChange = () => treeProvider.reload();
+    const pendingEvents = new Map<string, NodeJS.Timeout>();
+    const onChange = (uri: vscode.Uri) => {
+      treeProvider.reload();
+      const event = getSkillFileEvent(skillsPath, uri);
+      if (!event) {
+        return;
+      }
+
+      const key = `${event.skillName}:${event.metadata?.filePath ?? uri.fsPath}`;
+      const existing = pendingEvents.get(key);
+      if (existing) {
+        clearTimeout(existing);
+      }
+      pendingEvents.set(
+        key,
+        setTimeout(() => {
+          pendingEvents.delete(key);
+          reportSkillEvent(event);
+        }, 750)
+      );
+    };
     watcher.onDidCreate(onChange);
     watcher.onDidDelete(onChange);
     watcher.onDidChange(onChange);
