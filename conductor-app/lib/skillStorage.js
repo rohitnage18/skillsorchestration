@@ -11,7 +11,9 @@ import {
 
 const SKILLS_ROOT = path.join(process.cwd(), "..", "skills");
 const IMPORT_ROOT = path.join(process.cwd(), "imported-workspaces");
+const VERSION_HISTORY_ROOT = path.join(process.cwd(), "data", "skill-versions");
 const STATE_FILENAME = "skill-state.json";
+const MAX_VERSION_HISTORY = 50;
 
 function safeJoin(base, target) {
   const resolved = path.resolve(base, target);
@@ -36,6 +38,180 @@ function getFileType(relativePath) {
 
 function assertEditableSkillFile(relativePath) {
   return normalizeEditableSkillPath(relativePath);
+}
+
+function encodeVersionPath(relativePath) {
+  return Buffer.from(relativePath, "utf-8").toString("base64url");
+}
+
+function decodeVersionPath(encodedPath) {
+  return Buffer.from(encodedPath, "base64url").toString("utf-8");
+}
+
+function getVersionHistoryDirectory(skillName) {
+  return safeJoin(VERSION_HISTORY_ROOT, normalizeSkillName(skillName));
+}
+
+function getVersionHistoryFile(skillName, relativePath) {
+  const safePath = assertEditableSkillFile(relativePath);
+  return path.join(getVersionHistoryDirectory(skillName), `${encodeVersionPath(safePath)}.json`);
+}
+
+function readVersionHistory(skillName, relativePath) {
+  const historyFile = getVersionHistoryFile(skillName, relativePath);
+  if (!fs.existsSync(historyFile)) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(historyFile, "utf-8"));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeVersionHistory(skillName, relativePath, versions) {
+  const historyFile = getVersionHistoryFile(skillName, relativePath);
+  fs.mkdirSync(path.dirname(historyFile), { recursive: true });
+  fs.writeFileSync(historyFile, JSON.stringify(versions.slice(0, MAX_VERSION_HISTORY), null, 2), "utf-8");
+}
+
+async function resolveVersionActor(userId) {
+  if (!userId) {
+    return null;
+  }
+
+  try {
+    const { db } = await import("./db");
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true, role: true },
+    });
+
+    if (user) {
+      return user;
+    }
+  } catch (error) {
+    console.error("Failed to resolve skill version actor:", error);
+  }
+
+  return {
+    id: userId,
+    email: `${userId}@local.conductor`,
+    name: null,
+    role: null,
+  };
+}
+
+async function createVersionEntry({
+  skillName,
+  relativePath,
+  content,
+  userId = null,
+  action = "update",
+  restoredFromVersionId = null,
+}) {
+  return {
+    id: crypto.randomUUID(),
+    skillName: normalizeSkillName(skillName),
+    filePath: assertEditableSkillFile(relativePath),
+    fileType: getFileType(relativePath),
+    createdAt: new Date().toISOString(),
+    action,
+    restoredFromVersionId,
+    content,
+    hash: hashContent(content),
+    bytes: Buffer.byteLength(content, "utf-8"),
+    actor: await resolveVersionActor(userId),
+  };
+}
+
+async function recordSkillVersion({
+  skillName,
+  relativePath,
+  content,
+  userId,
+  action = "update",
+  restoredFromVersionId = null,
+}) {
+  const safeSkillName = normalizeSkillName(skillName);
+  const safePath = assertEditableSkillFile(relativePath);
+  const versions = readVersionHistory(safeSkillName, safePath);
+  const version = await createVersionEntry({
+    skillName: safeSkillName,
+    relativePath: safePath,
+    content,
+    userId,
+    action,
+    restoredFromVersionId,
+  });
+  writeVersionHistory(safeSkillName, safePath, [version, ...versions]);
+  return version;
+}
+
+async function seedVersionHistoryIfNeeded(skillName, relativePath, existingContent) {
+  if (!existingContent) {
+    return;
+  }
+
+  const safeSkillName = normalizeSkillName(skillName);
+  const safePath = assertEditableSkillFile(relativePath);
+  const versions = readVersionHistory(safeSkillName, safePath);
+  if (versions.length > 0) {
+    return;
+  }
+
+  const baselineVersion = await createVersionEntry({
+    skillName: safeSkillName,
+    relativePath: safePath,
+    content: existingContent,
+    userId: null,
+    action: "baseline",
+  });
+
+  writeVersionHistory(safeSkillName, safePath, [baselineVersion]);
+}
+
+function summarizeLineDiff(previousContent, nextContent) {
+  const previousLines = String(previousContent).split(/\r?\n/);
+  const nextLines = String(nextContent).split(/\r?\n/);
+  const total = Math.max(previousLines.length, nextLines.length);
+  let added = 0;
+  let removed = 0;
+  let changed = 0;
+  let unchanged = 0;
+
+  for (let index = 0; index < total; index += 1) {
+    const previousLine = previousLines[index];
+    const nextLine = nextLines[index];
+
+    if (previousLine === undefined && nextLine !== undefined) {
+      added += 1;
+      continue;
+    }
+
+    if (previousLine !== undefined && nextLine === undefined) {
+      removed += 1;
+      continue;
+    }
+
+    if (previousLine === nextLine) {
+      unchanged += 1;
+      continue;
+    }
+
+    changed += 1;
+  }
+
+  return {
+    added,
+    removed,
+    changed,
+    unchanged,
+    previousLineCount: previousLines.length,
+    nextLineCount: nextLines.length,
+  };
 }
 
 function loadSkillState(skillName) {
@@ -191,7 +367,7 @@ function loadFile(skillName, relativePath) {
   return fs.readFileSync(file, "utf-8");
 }
 
-async function saveFile(skillName, relativePath, content, userId) {
+async function saveFile(skillName, relativePath, content, userId, options = {}) {
   const editablePath = assertEditableSkillFile(relativePath);
   const safeContent = assertSkillFileContent(content);
   const skillDir = ensureSkillExists(skillName);
@@ -202,11 +378,20 @@ async function saveFile(skillName, relativePath, content, userId) {
     throw new Error("Cannot write outside of the skill folder.");
   }
   const previousContent = fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : "";
+  await seedVersionHistoryIfNeeded(skillName, editablePath, previousContent);
   fs.mkdirSync(directory, { recursive: true });
   fs.writeFileSync(file, safeContent, "utf-8");
+  const versionEntry = await recordSkillVersion({
+    skillName,
+    relativePath: editablePath,
+    content: safeContent,
+    userId,
+    action: options.versionAction || "update",
+    restoredFromVersionId: options.restoredFromVersionId || null,
+  });
   await logSkillActivity({
     userId,
-    action: "skill:file:update",
+    action: options.activityAction || "skill:file:update",
     resourceId: `${normalizeSkillName(skillName)}:${editablePath}`,
     changes: {
       before: {
@@ -222,9 +407,115 @@ async function saveFile(skillName, relativePath, content, userId) {
       skillName: normalizeSkillName(skillName),
       filePath: editablePath,
       fileType: getFileType(editablePath),
-      source: "conductor-ui",
+      source: options.source || "conductor-ui",
+      versionId: versionEntry.id,
+      versionAction: versionEntry.action,
+      restoredFromVersionId: versionEntry.restoredFromVersionId,
+      diffSummary: summarizeLineDiff(previousContent, safeContent),
     },
   });
+}
+
+function listVersionedSkillFiles() {
+  if (!fs.existsSync(VERSION_HISTORY_ROOT)) {
+    return [];
+  }
+
+  const skillDirectories = fs.readdirSync(VERSION_HISTORY_ROOT, { withFileTypes: true });
+  const versionedFiles = [];
+
+  for (const skillDirectory of skillDirectories) {
+    if (!skillDirectory.isDirectory()) {
+      continue;
+    }
+
+    const skillName = skillDirectory.name;
+    const directory = path.join(VERSION_HISTORY_ROOT, skillName);
+    const files = fs.readdirSync(directory, { withFileTypes: true });
+
+    for (const entry of files) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) {
+        continue;
+      }
+
+      const encodedPath = entry.name.slice(0, -5);
+      let filePath = "";
+
+      try {
+        filePath = assertEditableSkillFile(decodeVersionPath(encodedPath));
+      } catch {
+        continue;
+      }
+
+      const versions = readVersionHistory(skillName, filePath);
+      if (versions.length === 0) {
+        continue;
+      }
+
+      versionedFiles.push({
+        skillName,
+        filePath,
+        fileType: getFileType(filePath),
+        versionCount: versions.length,
+        latestVersion: {
+          id: versions[0].id,
+          createdAt: versions[0].createdAt,
+          action: versions[0].action,
+          actor: versions[0].actor || null,
+        },
+      });
+    }
+  }
+
+  return versionedFiles.sort((left, right) => {
+    return new Date(right.latestVersion.createdAt).getTime() - new Date(left.latestVersion.createdAt).getTime();
+  });
+}
+
+function listSkillVersions(skillName, relativePath, limit = 20) {
+  return readVersionHistory(skillName, relativePath)
+    .slice(0, limit)
+    .map(({ content, ...version }) => ({
+      ...version,
+      preview: content.slice(0, 240),
+    }));
+}
+
+function getSkillVersion(skillName, relativePath, versionId) {
+  const safeSkillName = normalizeSkillName(skillName);
+  const safePath = assertEditableSkillFile(relativePath);
+  return readVersionHistory(safeSkillName, safePath).find((version) => version.id === versionId) || null;
+}
+
+function getSkillVersionComparison(skillName, relativePath, previousVersionId, nextVersionId) {
+  const previousVersion = getSkillVersion(skillName, relativePath, previousVersionId);
+  const nextVersion = getSkillVersion(skillName, relativePath, nextVersionId);
+
+  if (!previousVersion || !nextVersion) {
+    return null;
+  }
+
+  return {
+    previousVersion,
+    nextVersion,
+    diffSummary: summarizeLineDiff(previousVersion.content, nextVersion.content),
+  };
+}
+
+async function restoreSkillVersion(skillName, relativePath, versionId, userId) {
+  const version = getSkillVersion(skillName, relativePath, versionId);
+  if (!version) {
+    throw new Error("Skill version not found.");
+  }
+
+  await saveFile(skillName, relativePath, version.content, userId, {
+    source: "admin-dashboard",
+    activityAction: "skill:file:restore",
+    versionAction: "restore",
+    restoredFromVersionId: version.id,
+  });
+
+  return version;
 }
 
 function ensureProjectContextFile(projectDir, projectName) {
@@ -345,4 +636,9 @@ export {
   importSkill,
   loadSkillState,
   logSkillActivity,
+  listVersionedSkillFiles,
+  listSkillVersions,
+  getSkillVersion,
+  getSkillVersionComparison,
+  restoreSkillVersion,
 };

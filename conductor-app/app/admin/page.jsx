@@ -6,6 +6,12 @@ import {
   approveSkillChangeRequest,
   rejectSkillChangeRequest,
 } from "../../lib/skillChangeRequests.js";
+import {
+  getSkillVersionComparison,
+  listSkillVersions,
+  listVersionedSkillFiles,
+  restoreSkillVersion,
+} from "../../lib/skillStorage.js";
 import { logAction, resendNotificationEmail } from "../../features/logging/server-functions";
 
 function formatDate(value) {
@@ -62,6 +68,32 @@ function canResendEmail(status, auditLogId) {
 function getStringParam(searchParams, key) {
   const value = searchParams?.[key];
   return Array.isArray(value) ? value[0] : value || "";
+}
+
+function parseHistoryTarget(value) {
+  const normalized = String(value || "");
+  const separatorIndex = normalized.indexOf("::");
+  if (separatorIndex === -1) {
+    return { skillName: "", filePath: "" };
+  }
+
+  return {
+    skillName: normalized.slice(0, separatorIndex),
+    filePath: normalized.slice(separatorIndex + 2),
+  };
+}
+
+function formatVersionActor(actor) {
+  if (!actor || typeof actor !== "object") {
+    return "Unknown actor";
+  }
+
+  return actor.name || actor.email || actor.id || "Unknown actor";
+}
+
+function formatVersionPreview(preview) {
+  const text = String(preview || "").replace(/\s+/g, " ").trim();
+  return text || "No preview available.";
 }
 
 function buildAuditWhere(filters) {
@@ -247,6 +279,22 @@ async function markAllNotificationsRead() {
   revalidatePath("/admin");
 }
 
+async function restoreVersion(formData) {
+  "use server";
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") {
+    throw new Error("Admin permission is required.");
+  }
+
+  const skillName = String(formData.get("skillName") || "");
+  const filePath = String(formData.get("filePath") || "");
+  const versionId = String(formData.get("versionId") || "");
+
+  await restoreSkillVersion(skillName, filePath, versionId, session.user.id);
+  revalidatePath("/admin");
+  redirect(`/admin?historyTarget=${encodeURIComponent(`${skillName}::${filePath}`)}`);
+}
+
 export default async function AdminDashboardPage({ searchParams }) {
   const session = await auth();
 
@@ -290,6 +338,29 @@ export default async function AdminDashboardPage({ searchParams }) {
     orderBy: { resource: "asc" },
     select: { resource: true },
   });
+  const versionedSkillFiles = listVersionedSkillFiles();
+  const requestedHistoryTarget = parseHistoryTarget(getStringParam(resolvedSearchParams, "historyTarget"));
+  const selectedHistoryFile =
+    versionedSkillFiles.find(
+      (entry) =>
+        entry.skillName === requestedHistoryTarget.skillName && entry.filePath === requestedHistoryTarget.filePath
+    ) || versionedSkillFiles[0] || null;
+  const versionHistory = selectedHistoryFile
+    ? listSkillVersions(selectedHistoryFile.skillName, selectedHistoryFile.filePath, 30)
+    : [];
+  const selectedVersionA =
+    getStringParam(resolvedSearchParams, "versionA") || versionHistory[1]?.id || versionHistory[0]?.id || "";
+  const selectedVersionB =
+    getStringParam(resolvedSearchParams, "versionB") || versionHistory[0]?.id || versionHistory[1]?.id || "";
+  const versionComparison =
+    selectedHistoryFile && selectedVersionA && selectedVersionB && selectedVersionA !== selectedVersionB
+      ? getSkillVersionComparison(
+          selectedHistoryFile.skillName,
+          selectedHistoryFile.filePath,
+          selectedVersionA,
+          selectedVersionB
+        )
+      : null;
 
   const [
     users,
@@ -599,6 +670,166 @@ export default async function AdminDashboardPage({ searchParams }) {
               <div className="empty-state">No approval decisions yet.</div>
             )}
           </div>
+        </section>
+
+        <section className="admin-card wide">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Version history</p>
+              <h2>Compare, audit, and restore skill files</h2>
+            </div>
+            <span className="status-pill neutral">{versionedSkillFiles.length} tracked files</span>
+          </div>
+
+          {versionedSkillFiles.length > 0 ? (
+            <>
+              <form className="admin-filter-grid">
+                <label className="form-field">
+                  <span>Tracked file</span>
+                  <select
+                    name="historyTarget"
+                    defaultValue={
+                      selectedHistoryFile ? `${selectedHistoryFile.skillName}::${selectedHistoryFile.filePath}` : ""
+                    }
+                    className="search-field"
+                  >
+                    {versionedSkillFiles.map((entry) => (
+                      <option key={`${entry.skillName}:${entry.filePath}`} value={`${entry.skillName}::${entry.filePath}`}>
+                        {entry.skillName} / {entry.filePath}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-field">
+                  <span>Older version</span>
+                  <select name="versionA" defaultValue={selectedVersionA} className="search-field">
+                    {versionHistory.map((version) => (
+                      <option key={version.id} value={version.id}>
+                        {formatDate(new Date(version.createdAt))} - {formatVersionActor(version.actor)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-field">
+                  <span>Newer version</span>
+                  <select name="versionB" defaultValue={selectedVersionB} className="search-field">
+                    {versionHistory.map((version) => (
+                      <option key={version.id} value={version.id}>
+                        {formatDate(new Date(version.createdAt))} - {formatVersionActor(version.actor)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button className="button primary" type="submit">
+                  Compare versions
+                </button>
+              </form>
+
+              <div className="version-history-grid">
+                <div className="version-history-list">
+                  {selectedHistoryFile ? (
+                    <div className="version-summary-card">
+                      <strong>
+                        {selectedHistoryFile.skillName} / {selectedHistoryFile.filePath}
+                      </strong>
+                      <span>
+                        {selectedHistoryFile.versionCount} versions tracked · Latest {formatDate(new Date(selectedHistoryFile.latestVersion.createdAt))}
+                      </span>
+                    </div>
+                  ) : null}
+
+                  <div className="admin-table">
+                    {versionHistory.map((version) => (
+                      <div className="admin-row version-row" key={version.id}>
+                        <div>
+                          <strong>{formatAction(version.action)}</strong>
+                          <span>
+                            {formatVersionActor(version.actor)} · {formatDate(new Date(version.createdAt))}
+                          </span>
+                          <span>{formatVersionPreview(version.preview)}</span>
+                        </div>
+                        <div className="admin-actions">
+                          <span className="status-pill neutral">{Math.round((version.bytes || 0) / 1024 * 10) / 10} KB</span>
+                          <form action={restoreVersion}>
+                            <input type="hidden" name="skillName" value={selectedHistoryFile?.skillName || ""} />
+                            <input type="hidden" name="filePath" value={selectedHistoryFile?.filePath || ""} />
+                            <input type="hidden" name="versionId" value={version.id} />
+                            <button className="button secondary compact" type="submit">
+                              Restore
+                            </button>
+                          </form>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="version-compare-panel">
+                  {versionComparison ? (
+                    <>
+                      <div className="version-diff-stats">
+                        <div className="summary-item">
+                          <span>Added lines</span>
+                          <strong>{versionComparison.diffSummary.added}</strong>
+                        </div>
+                        <div className="summary-item">
+                          <span>Removed lines</span>
+                          <strong>{versionComparison.diffSummary.removed}</strong>
+                        </div>
+                        <div className="summary-item">
+                          <span>Changed lines</span>
+                          <strong>{versionComparison.diffSummary.changed}</strong>
+                        </div>
+                        <div className="summary-item">
+                          <span>Unchanged lines</span>
+                          <strong>{versionComparison.diffSummary.unchanged}</strong>
+                        </div>
+                      </div>
+
+                      <div className="version-compare-grid">
+                        <div className="version-code-card">
+                          <div className="panel-header">
+                            <div>
+                              <p className="eyebrow">Older</p>
+                              <h3>{formatAction(versionComparison.previousVersion.action)}</h3>
+                            </div>
+                            <span className="status-pill neutral">
+                              {formatDate(new Date(versionComparison.previousVersion.createdAt))}
+                            </span>
+                          </div>
+                          <p className="muted-text">
+                            {formatVersionActor(versionComparison.previousVersion.actor)}
+                          </p>
+                          <pre>{versionComparison.previousVersion.content}</pre>
+                        </div>
+                        <div className="version-code-card">
+                          <div className="panel-header">
+                            <div>
+                              <p className="eyebrow">Newer</p>
+                              <h3>{formatAction(versionComparison.nextVersion.action)}</h3>
+                            </div>
+                            <span className="status-pill neutral">
+                              {formatDate(new Date(versionComparison.nextVersion.createdAt))}
+                            </span>
+                          </div>
+                          <p className="muted-text">
+                            {formatVersionActor(versionComparison.nextVersion.actor)}
+                          </p>
+                          <pre>{versionComparison.nextVersion.content}</pre>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="empty-state">
+                      Pick two different versions of the same file to compare them side by side.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="empty-state">No skill file versions have been captured yet. Save a skill file to start tracking history.</div>
+          )}
         </section>
 
         <section className="admin-card">
