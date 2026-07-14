@@ -54,7 +54,9 @@ Each accepted event creates an audit log and admin notification. If SMTP is conf
 - VS Code MCP config now points `PROJECT_PATH` at this workspace, enabling `read_context` and `update_context`.
 - Conductor app logs skill create/import/edit/test/execute events and can send SMTP email to admin users.
 - VS Code extension can report preview/use/file-update events when `skillsLibrary.conductorUrl` is configured.
-- Strict admin approval before skill edits is intentionally deferred.
+- Admin/user guardrails and approval flows are in place for protected conductor operations.
+- Conductor admin UI now supports skill file version history, side-by-side comparison, and restore actions.
+- A new `skill-authoring` meta-skill exists to scaffold future skills using existing library conventions.
 
 ## Open Questions / Blockers
 
@@ -75,3 +77,7 @@ Each accepted event creates an audit log and admin notification. If SMTP is conf
 ### 2026-07-09
 
 Added root `CONTEXT.md` so MCP agents can read and update project context for this workspace.
+
+### 2026-07-13
+
+Added conductor-managed skill version history with admin compare and restore support, created the `skill-authoring` meta-skill for structured future skill creation, and added a formal implementation report under `docs/IMPLEMENTATION_REPORT_2026-07-13.md`.
