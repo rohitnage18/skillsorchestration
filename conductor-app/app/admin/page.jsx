@@ -10,7 +10,10 @@ import {
   getSkillVersionComparison,
   listSkillVersions,
   listVersionedSkillFiles,
+  listImportedWorkspaces,
+  loadImportedWorkspaceContext,
   restoreSkillVersion,
+  saveImportedWorkspaceContext,
 } from "../../lib/skillStorage.js";
 import { logAction, resendNotificationEmail } from "../../features/logging/server-functions";
 
@@ -295,6 +298,20 @@ async function restoreVersion(formData) {
   redirect(`/admin?historyTarget=${encodeURIComponent(`${skillName}::${filePath}`)}`);
 }
 
+async function saveWorkspaceContext(formData) {
+  "use server";
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") {
+    throw new Error("Admin permission is required.");
+  }
+
+  const workspaceName = String(formData.get("workspaceName") || "");
+  const content = String(formData.get("content") || "");
+  await saveImportedWorkspaceContext(workspaceName, content, session.user.id);
+  revalidatePath("/admin");
+  redirect(`/admin?contextWorkspace=${encodeURIComponent(workspaceName)}`);
+}
+
 export default async function AdminDashboardPage({ searchParams }) {
   const session = await auth();
 
@@ -361,6 +378,14 @@ export default async function AdminDashboardPage({ searchParams }) {
           selectedVersionB
         )
       : null;
+  const importedWorkspaces = listImportedWorkspaces();
+  const selectedWorkspaceName =
+    getStringParam(resolvedSearchParams, "contextWorkspace") || importedWorkspaces[0]?.name || "";
+  const selectedWorkspace =
+    importedWorkspaces.find((workspace) => workspace.name === selectedWorkspaceName) || importedWorkspaces[0] || null;
+  const selectedWorkspaceContext = selectedWorkspace
+    ? loadImportedWorkspaceContext(selectedWorkspace.name)
+    : "";
 
   const [
     users,
@@ -829,6 +854,82 @@ export default async function AdminDashboardPage({ searchParams }) {
             </>
           ) : (
             <div className="empty-state">No skill file versions have been captured yet. Save a skill file to start tracking history.</div>
+          )}
+        </section>
+
+        <section className="admin-card wide">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Context workflow</p>
+              <h2>Imported workspace context files</h2>
+            </div>
+            <span className="status-pill neutral">{importedWorkspaces.length} workspaces</span>
+          </div>
+
+          {importedWorkspaces.length > 0 ? (
+            <div className="context-admin-grid">
+              <div className="context-admin-sidebar">
+                <form className="form-field">
+                  <span>Workspace</span>
+                  <select name="contextWorkspace" defaultValue={selectedWorkspace?.name || ""} className="search-field">
+                    {importedWorkspaces.map((workspace) => (
+                      <option key={workspace.name} value={workspace.name}>
+                        {workspace.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="button secondary compact" type="submit">
+                    Load context
+                  </button>
+                </form>
+
+                <div className="admin-table compact-list">
+                  {importedWorkspaces.map((workspace) => (
+                    <a
+                      key={workspace.name}
+                      href={`/admin?contextWorkspace=${encodeURIComponent(workspace.name)}`}
+                      className={`workspace-pill ${selectedWorkspace?.name === workspace.name ? "active" : ""}`}
+                    >
+                      <strong>{workspace.name}</strong>
+                      <span>
+                        {workspace.hasContext
+                          ? `Context updated ${formatDate(new Date(workspace.contextUpdatedAt))}`
+                          : "No context yet"}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+
+              <div className="context-admin-panel">
+                {selectedWorkspace ? (
+                  <form action={saveWorkspaceContext} className="skill-editor-panel">
+                    <div className="editor-toolbar">
+                      <div>
+                        <p className="eyebrow">Editing</p>
+                        <h3>{selectedWorkspace.name}/CONTEXT.md</h3>
+                        <p className="status-copy">
+                          Changes saved here are logged as `context:update` audit events.
+                        </p>
+                      </div>
+                      <input type="hidden" name="workspaceName" value={selectedWorkspace.name} />
+                      <button className="button primary" type="submit">
+                        Save context
+                      </button>
+                    </div>
+                    <textarea
+                      className="editor-textarea"
+                      name="content"
+                      defaultValue={selectedWorkspaceContext}
+                    />
+                  </form>
+                ) : (
+                  <div className="empty-state">Import a skill into a workspace to start managing its `CONTEXT.md` file here.</div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="empty-state">No imported workspaces yet. Import a skill workspace first to manage its context.</div>
           )}
         </section>
 

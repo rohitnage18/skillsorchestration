@@ -58,12 +58,12 @@
 
 ## Phase 4: Define And Log Skill Usage
 
-- [ ] Treat conductor preview (`GET /api/skills/[skillName]`) as `skill:preview` only if admin wants read tracking.
+- [x] Treat conductor preview (`GET /api/skills/[skillName]`) as `skill:preview` only if admin wants read tracking.
 - [x] Treat conductor test/run (`POST /api/skills/[skillName]/run`) as `skill:test`.
 - [x] Treat registry execution (`POST /api/registry/skills/[skillId]/execute`) as `skill:execute`.
 - [x] Add `logAction()` to `executeRegistrySkill()` after successful execution.
 - [x] Add failure logging for failed execution attempts if admin wants visibility into broken skills.
-- [ ] Decide whether VS Code "insert at cursor" counts as `skill:use`.
+- [x] Decide whether VS Code "insert at cursor" counts as `skill:use`.
 - [x] Add throttling or deduplication if preview/read operations become noisy.
 
 ## Phase 5: VS Code Integration For Notifications
@@ -126,8 +126,8 @@
 - [x] Configure `.vscode/mcp.json` with `PROJECT_PATH=${workspaceFolder}`.
 - [x] Document that agents should call `read_context` before work.
 - [x] Document that agents should call `update_context` after meaningful work.
-- [ ] Add UI affordance in conductor app for viewing/editing imported project `CONTEXT.md` files.
-- [ ] Add optional context event logging when `CONTEXT.md` changes.
+- [x] Add UI affordance in conductor app for viewing/editing imported project `CONTEXT.md` files.
+- [x] Add optional context event logging when `CONTEXT.md` changes.
 
 ## Phase 8: Admin UX
 
@@ -140,13 +140,13 @@
 
 ## Phase 9: Testing And Validation
 
-- [ ] Add unit tests for email config parsing and missing SMTP behavior.
-- [ ] Add unit tests for event-to-notification mapping.
-- [ ] Add integration test for filesystem skill import notification.
-- [ ] Add integration test for filesystem `SKILL.md` edit notification.
-- [ ] Add integration test for reference file edit notification.
-- [ ] Add integration test for registry skill execution notification.
-- [ ] Add extension-side test or manual checklist for VS Code insert/use event.
+- [x] Add unit tests for email config parsing and missing SMTP behavior.
+- [x] Add unit tests for event-to-notification mapping.
+- [x] Add integration test for filesystem skill import notification.
+- [x] Add integration test for filesystem `SKILL.md` edit notification.
+- [x] Add integration test for reference file edit notification.
+- [x] Add integration test for registry skill execution notification.
+- [x] Add extension-side test or manual checklist for VS Code insert/use event.
 - [x] Run `npm run build` in `conductor-app`.
 - [x] Run `npm run build` in `skills-vscode-extension`.
 - [x] Run `npm run build` in `skills-mcp-server`.

@@ -8,6 +8,7 @@
     "prebuild": "prisma generate",
     "build": "next build",
     "start": "next start",
+    "test": "node --experimental-strip-types --test tests/**/*.test.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },

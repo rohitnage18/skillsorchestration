@@ -57,6 +57,10 @@ Each accepted event creates an audit log and admin notification. If SMTP is conf
 - Admin/user guardrails and approval flows are in place for protected conductor operations.
 - Conductor admin UI now supports skill file version history, side-by-side comparison, and restore actions.
 - A new `skill-authoring` meta-skill exists to scaffold future skills using existing library conventions.
+- Conductor admin UI now supports viewing and editing imported workspace `CONTEXT.md` files.
+- Conductor can optionally log `skill:preview` and `context:update` events for conductor-managed workflows.
+- Conductor includes basic Node-based tests for notification config parsing and action-to-notification mapping.
+- Conductor now includes integration-style tests for filesystem import/edit notification logging and registry execution logging.
 
 ## Open Questions / Blockers
 
@@ -81,3 +85,11 @@ Added root `CONTEXT.md` so MCP agents can read and update project context for th
 ### 2026-07-13
 
 Added conductor-managed skill version history with admin compare and restore support, created the `skill-authoring` meta-skill for structured future skill creation, and added a formal implementation report under `docs/IMPLEMENTATION_REPORT_2026-07-13.md`.
+
+### 2026-07-15
+
+Completed more of the remaining orchestration checklist by adding imported workspace context management to the admin dashboard, optional conductor-side preview/context event logging, Node-based notification helper tests, and a manual VS Code insert/use validation checklist. The remaining unchecked TODO items are the deeper end-to-end notification integration tests.
+
+### 2026-07-15
+
+Finished the remaining TODO checklist items by adding integration-style tests for filesystem skill import notification logging, `SKILL.md` edit logging, reference edit logging, and registry skill execution logging. `conductor-app` now passes both `npm test` and `npm run build` with the full checklist completed.
