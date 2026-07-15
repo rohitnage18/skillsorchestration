@@ -14,6 +14,10 @@ const IMPORT_ROOT = path.join(process.cwd(), "imported-workspaces");
 const VERSION_HISTORY_ROOT = path.join(process.cwd(), "data", "skill-versions");
 const STATE_FILENAME = "skill-state.json";
 const MAX_VERSION_HISTORY = 50;
+const skillStorageTestHooks = {
+  db: null,
+  logAction: null,
+};
 
 function safeJoin(base, target) {
   const resolved = path.resolve(base, target);
@@ -83,7 +87,7 @@ async function resolveVersionActor(userId) {
   }
 
   try {
-    const { db } = await import("./db");
+    const db = skillStorageTestHooks.db ?? (await import("./db")).db;
     const user = await db.user.findUnique({
       where: { id: userId },
       select: { id: true, email: true, name: true, role: true },
@@ -319,6 +323,71 @@ async function createSkill(skillName, description, userId) {
     metadata: { skillName: normalized, source: "conductor-ui" },
   });
   return normalized;
+}
+
+function getImportedWorkspaceDirectory(importName) {
+  const normalized = normalizeSkillName(importName);
+  return safeJoin(IMPORT_ROOT, normalized);
+}
+
+function listImportedWorkspaces() {
+  if (!fs.existsSync(IMPORT_ROOT)) {
+    return [];
+  }
+
+  return fs.readdirSync(IMPORT_ROOT, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+    .map((entry) => {
+      const contextPath = path.join(IMPORT_ROOT, entry.name, "CONTEXT.md");
+      const stats = fs.existsSync(contextPath) ? fs.statSync(contextPath) : null;
+      return {
+        name: entry.name,
+        hasContext: !!stats,
+        contextUpdatedAt: stats?.mtime.toISOString() || null,
+      };
+    })
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function loadImportedWorkspaceContext(importName) {
+  const workspaceDir = getImportedWorkspaceDirectory(importName);
+  const contextPath = path.join(workspaceDir, "CONTEXT.md");
+  if (!fs.existsSync(contextPath)) {
+    ensureProjectContextFile(workspaceDir, normalizeSkillName(importName));
+  }
+  return fs.readFileSync(contextPath, "utf-8");
+}
+
+async function saveImportedWorkspaceContext(importName, content, userId) {
+  const workspaceName = normalizeSkillName(importName);
+  const workspaceDir = getImportedWorkspaceDirectory(workspaceName);
+  const contextPath = path.join(workspaceDir, "CONTEXT.md");
+  const previousContent = fs.existsSync(contextPath) ? fs.readFileSync(contextPath, "utf-8") : "";
+  const safeContent = assertSkillFileContent(content);
+
+  fs.writeFileSync(contextPath, safeContent, "utf-8");
+
+  await logContextActivity({
+    userId,
+    action: "context:update",
+    resourceId: workspaceName,
+    changes: {
+      before: {
+        hash: hashContent(previousContent),
+        bytes: Buffer.byteLength(previousContent, "utf-8"),
+      },
+      after: {
+        hash: hashContent(safeContent),
+        bytes: Buffer.byteLength(safeContent, "utf-8"),
+      },
+    },
+    metadata: {
+      workspaceName,
+      filePath: "CONTEXT.md",
+      source: "conductor-ui",
+      diffSummary: summarizeLineDiff(previousContent, safeContent),
+    },
+  });
 }
 
 function listSkillFiles(skillName) {
@@ -569,8 +638,8 @@ async function logSkillActivity({ userId, action, resourceId, changes, metadata 
       throw new Error("Authenticated user id is required for skill activity logging.");
     }
 
-    const { db } = await import("./db");
-    const { logAction } = await import("../features/logging/server-functions");
+    const db = skillStorageTestHooks.db ?? (await import("./db")).db;
+    const logAction = skillStorageTestHooks.logAction ?? (await import("../features/logging/server-functions")).logAction;
 
     await db.user.upsert({
       where: { id: userId },
@@ -592,6 +661,42 @@ async function logSkillActivity({ userId, action, resourceId, changes, metadata 
   } catch (error) {
     console.error("Failed to log skill activity:", error);
   }
+}
+
+async function logContextActivity({ userId, action, resourceId, changes, metadata }) {
+  try {
+    if (!userId) {
+      throw new Error("Authenticated user id is required for context activity logging.");
+    }
+
+    const db = skillStorageTestHooks.db ?? (await import("./db")).db;
+    const logAction = skillStorageTestHooks.logAction ?? (await import("../features/logging/server-functions")).logAction;
+
+    await db.user.upsert({
+      where: { id: userId },
+      update: {},
+      create: {
+        id: userId,
+        email: `${userId}@local.conductor`,
+      },
+    });
+
+    await logAction({
+      userId,
+      action,
+      resource: "context",
+      resourceId,
+      changes,
+      metadata,
+    });
+  } catch (error) {
+    console.error("Failed to log context activity:", error);
+  }
+}
+
+function __setSkillStorageTestHooks(hooks = {}) {
+  skillStorageTestHooks.db = hooks.db ?? null;
+  skillStorageTestHooks.logAction = hooks.logAction ?? null;
 }
 
 async function importSkill(skillName, importName, userId) {
@@ -636,9 +741,13 @@ export {
   importSkill,
   loadSkillState,
   logSkillActivity,
+  listImportedWorkspaces,
+  loadImportedWorkspaceContext,
+  saveImportedWorkspaceContext,
   listVersionedSkillFiles,
   listSkillVersions,
   getSkillVersion,
   getSkillVersionComparison,
   restoreSkillVersion,
+  __setSkillStorageTestHooks,
 };

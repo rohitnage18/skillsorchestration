@@ -1,9 +1,44 @@
-import { db } from "../../lib/db";
-import { Prisma } from "../../lib/generated/prisma/client";
-import { CreateSkillInput, UpdateSkillInput } from "./schemas";
-import { runServerFunctionSkill } from "./server-functions";
-import { logAction } from "../logging/server-functions";
-import { requireUser } from "../../lib/auth.js";
+import type { CreateSkillInput, UpdateSkillInput } from "./schemas";
+
+const registryServiceTestHooks: {
+  db?: any;
+  logAction?: (...args: any[]) => any;
+  requireUser?: (...args: any[]) => any;
+  runServerFunctionSkill?: (...args: any[]) => any;
+  fetch?: typeof fetch;
+} = {};
+
+async function getDatabase() {
+  if (registryServiceTestHooks.db) {
+    return registryServiceTestHooks.db;
+  }
+
+  return (await import("../../lib/db")).db;
+}
+
+async function getLogAction() {
+  if (registryServiceTestHooks.logAction) {
+    return registryServiceTestHooks.logAction;
+  }
+
+  return (await import("../logging/server-functions")).logAction;
+}
+
+async function getRequireUser() {
+  if (registryServiceTestHooks.requireUser) {
+    return registryServiceTestHooks.requireUser;
+  }
+
+  return (await import("../../lib/auth.js")).requireUser;
+}
+
+async function getRunServerFunctionSkill() {
+  if (registryServiceTestHooks.runServerFunctionSkill) {
+    return registryServiceTestHooks.runServerFunctionSkill;
+  }
+
+  return (await import("./server-functions")).runServerFunctionSkill;
+}
 
 function slugify(value: string) {
   return value
@@ -14,12 +49,13 @@ function slugify(value: string) {
 }
 
 export async function getOwnerId(headers: Headers) {
-  const user = await requireUser(headers);
+  const user = await (await getRequireUser())(headers);
   return user.id;
 }
 
 async function ensureUser(ownerId: string) {
-  return db.user.upsert({
+  const database = await getDatabase();
+  return database.user.upsert({
     where: { id: ownerId },
     update: {},
     create: {
@@ -31,10 +67,11 @@ async function ensureUser(ownerId: string) {
 
 export async function listRegistrySkills(ownerId: string, query = "") {
   await ensureUser(ownerId);
+  const database = await getDatabase();
 
   const search = query.trim();
 
-  return db.skill.findMany({
+  return database.skill.findMany({
     where: {
       ownerId,
       ...(search
@@ -53,8 +90,9 @@ export async function listRegistrySkills(ownerId: string, query = "") {
 
 export async function getRegistrySkill(ownerId: string, skillId: string) {
   await ensureUser(ownerId);
+  const database = await getDatabase();
 
-  const skill = await db.skill.findFirst({
+  const skill = await database.skill.findFirst({
     where: {
       ownerId,
       OR: [{ id: skillId }, { slug: skillId }],
@@ -70,6 +108,7 @@ export async function getRegistrySkill(ownerId: string, skillId: string) {
 
 export async function createRegistrySkill(ownerId: string, input: CreateSkillInput) {
   await ensureUser(ownerId);
+  const database = await getDatabase();
 
   const slug = input.slug ?? slugify(input.name);
 
@@ -77,7 +116,7 @@ export async function createRegistrySkill(ownerId: string, input: CreateSkillInp
     throw new Error("A valid slug is required.");
   }
 
-  const createdSkill = await db.skill.create({
+  const createdSkill = await database.skill.create({
     data: {
       ownerId,
       name: input.name,
@@ -86,15 +125,15 @@ export async function createRegistrySkill(ownerId: string, input: CreateSkillInp
       type: input.type,
       endpointUrl: input.endpointUrl,
       method: input.type === "HTTP" ? input.method ?? "POST" : null,
-      headers: (input.headers ?? {}) as Prisma.InputJsonValue,
+      headers: (input.headers ?? {}) as any,
       functionKey: input.functionKey,
-      inputSchema: input.inputSchema as Prisma.InputJsonValue,
-      outputSchema: input.outputSchema as Prisma.InputJsonValue,
-      metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
+      inputSchema: input.inputSchema as any,
+      outputSchema: input.outputSchema as any,
+      metadata: (input.metadata ?? {}) as any,
     },
   });
 
-  await logAction({
+  await (await getLogAction())({
     userId: ownerId,
     action: "skill:create",
     resource: "skill",
@@ -108,8 +147,9 @@ export async function createRegistrySkill(ownerId: string, input: CreateSkillInp
 
 export async function updateRegistrySkill(ownerId: string, skillId: string, input: UpdateSkillInput) {
   const existing = await getRegistrySkill(ownerId, skillId);
+  const database = await getDatabase();
 
-  const updatedSkill = await db.skill.update({
+  const updatedSkill = await database.skill.update({
     where: { id: existing.id },
     data: {
       ...(input.name ? { name: input.name } : {}),
@@ -118,15 +158,15 @@ export async function updateRegistrySkill(ownerId: string, skillId: string, inpu
       ...(input.type ? { type: input.type } : {}),
       ...(input.endpointUrl !== undefined ? { endpointUrl: input.endpointUrl } : {}),
       ...(input.method !== undefined ? { method: input.method } : {}),
-      ...(input.headers !== undefined ? { headers: input.headers as Prisma.InputJsonValue } : {}),
+      ...(input.headers !== undefined ? { headers: input.headers as any } : {}),
       ...(input.functionKey !== undefined ? { functionKey: input.functionKey } : {}),
-      ...(input.inputSchema !== undefined ? { inputSchema: input.inputSchema as Prisma.InputJsonValue } : {}),
-      ...(input.outputSchema !== undefined ? { outputSchema: input.outputSchema as Prisma.InputJsonValue } : {}),
-      ...(input.metadata !== undefined ? { metadata: input.metadata as Prisma.InputJsonValue } : {}),
+      ...(input.inputSchema !== undefined ? { inputSchema: input.inputSchema as any } : {}),
+      ...(input.outputSchema !== undefined ? { outputSchema: input.outputSchema as any } : {}),
+      ...(input.metadata !== undefined ? { metadata: input.metadata as any } : {}),
     },
   });
 
-  await logAction({
+  await (await getLogAction())({
     userId: ownerId,
     action: "skill:update",
     resource: "skill",
@@ -140,9 +180,10 @@ export async function updateRegistrySkill(ownerId: string, skillId: string, inpu
 
 export async function deleteRegistrySkill(ownerId: string, skillId: string) {
   const existing = await getRegistrySkill(ownerId, skillId);
-  await db.skill.delete({ where: { id: existing.id } });
+  const database = await getDatabase();
+  await database.skill.delete({ where: { id: existing.id } });
 
-  await logAction({
+  await (await getLogAction())({
     userId: ownerId,
     action: "skill:delete",
     resource: "skill",
@@ -165,10 +206,10 @@ export async function executeRegistrySkill(ownerId: string, skillId: string, inp
 
       const result = {
         skillId: skill.id,
-        output: await runServerFunctionSkill(skill.functionKey, input),
+        output: await (await getRunServerFunctionSkill())(skill.functionKey, input),
       };
 
-      await logAction({
+      await (await getLogAction())({
         userId: ownerId,
         action: "skill:execute",
         resource: "skill",
@@ -183,7 +224,7 @@ export async function executeRegistrySkill(ownerId: string, skillId: string, inp
       throw new Error("Skill is missing endpointUrl.");
     }
 
-    const response = await fetch(skill.endpointUrl, {
+    const response = await (registryServiceTestHooks.fetch ?? fetch)(skill.endpointUrl, {
       method: skill.method ?? "POST",
       headers: {
         "content-type": "application/json",
@@ -204,7 +245,7 @@ export async function executeRegistrySkill(ownerId: string, skillId: string, inp
       output,
     };
 
-    await logAction({
+    await (await getLogAction())({
       userId: ownerId,
       action: "skill:execute",
       resource: "skill",
@@ -214,7 +255,7 @@ export async function executeRegistrySkill(ownerId: string, skillId: string, inp
 
     return result;
   } catch (error) {
-    await logAction({
+    await (await getLogAction())({
       userId: ownerId,
       action: "skill:execute:fail",
       resource: "skill",
@@ -228,4 +269,12 @@ export async function executeRegistrySkill(ownerId: string, skillId: string, inp
     });
     throw error;
   }
+}
+
+export function __setRegistryServiceTestHooks(hooks: typeof registryServiceTestHooks = {}) {
+  registryServiceTestHooks.db = hooks.db;
+  registryServiceTestHooks.logAction = hooks.logAction;
+  registryServiceTestHooks.requireUser = hooks.requireUser;
+  registryServiceTestHooks.runServerFunctionSkill = hooks.runServerFunctionSkill;
+  registryServiceTestHooks.fetch = hooks.fetch;
 }

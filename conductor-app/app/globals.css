@@ -1315,6 +1315,19 @@ button:disabled,
   align-items: flex-start;
 }
 
+.context-admin-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.5fr);
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.context-admin-sidebar,
+.context-admin-panel {
+  display: grid;
+  gap: 16px;
+}
+
 @media (max-width: 900px) {
   .admin-heading,
   .admin-metrics,
@@ -1325,7 +1338,8 @@ button:disabled,
 
   .version-history-grid,
   .version-diff-stats,
-  .version-compare-grid {
+  .version-compare-grid,
+  .context-admin-grid {
     grid-template-columns: 1fr;
   }
 }

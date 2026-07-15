@@ -6,6 +6,14 @@ import {
   PrismaClient,
   User,
 } from "../../lib/generated/prisma/client";
+import {
+  getActionLabel,
+  getInitialEmailStatus,
+  getNotificationTitle,
+  mapActionToNotificationType,
+  parseEmailConfigFromEnv,
+  shouldSkipEmail,
+} from "./notification.helpers.js";
 
 export interface EmailConfig {
   smtpHost: string;
@@ -24,21 +32,7 @@ export class NotificationService {
   }
 
   private initializeEmailConfig() {
-    if (
-      process.env.SMTP_HOST &&
-      process.env.SMTP_USER &&
-      process.env.SMTP_PASSWORD &&
-      process.env.FROM_EMAIL
-    ) {
-      this.emailConfig = {
-        smtpHost: process.env.SMTP_HOST,
-        smtpPort: Number(process.env.SMTP_PORT ?? 587),
-        smtpSecure: process.env.SMTP_SECURE === "true",
-        smtpUser: process.env.SMTP_USER,
-        smtpPassword: process.env.SMTP_PASSWORD,
-        fromEmail: process.env.FROM_EMAIL,
-      };
-    }
+    this.emailConfig = parseEmailConfigFromEnv();
   }
 
   async notifyAdmins(auditLog: AuditLog) {
@@ -51,19 +45,19 @@ export class NotificationService {
         return;
       }
 
-      const notificationType = this.mapActionToNotificationType(auditLog.action);
+      const notificationType = mapActionToNotificationType(auditLog.action) as NotificationType;
       const actor = await this.prisma.user.findUnique({
         where: { id: auditLog.userId },
       });
       const actorName = actor?.name || actor?.email || auditLog.userId;
-      const initialEmailStatus = this.getInitialEmailStatus(auditLog.action);
+      const initialEmailStatus = getInitialEmailStatus(auditLog.action, this.emailConfig);
 
       const notifications = await Promise.all(
         admins.map((admin) =>
           this.prisma.notification.create({
             data: {
               userId: admin.id,
-              title: this.getNotificationTitle(auditLog.action),
+              title: getNotificationTitle(auditLog.action),
               message: this.getNotificationMessage(
                 auditLog.action,
                 actorName,
@@ -123,7 +117,7 @@ export class NotificationService {
       throw new Error("Linked audit log not found.");
     }
 
-    if (this.shouldSkipEmail(auditLog.action)) {
+    if (shouldSkipEmail(auditLog.action)) {
       await this.prisma.notification.update({
         where: { id: notification.id },
         data: {
@@ -152,18 +146,6 @@ export class NotificationService {
     const actorName = actor?.name || actor?.email || auditLog.userId;
 
     return this.sendNotificationEmail(notification, notification.user, auditLog, actorName);
-  }
-
-  private getInitialEmailStatus(action: string) {
-    if (this.shouldSkipEmail(action)) {
-      return "SKIPPED" as const;
-    }
-
-    if (!this.emailConfig) {
-      return "NOT_CONFIGURED" as const;
-    }
-
-    return "PENDING" as const;
   }
 
   private async sendNotificationEmail(
@@ -286,74 +268,6 @@ export class NotificationService {
     });
   }
 
-  private mapActionToNotificationType(action: string): NotificationType {
-    const typeMap: Record<string, NotificationType> = {
-      "skill:list": "USER_ACTION",
-      "skill:read": "USER_ACTION",
-      "skill:create": "SKILL_CREATED",
-      "skill:update": "SKILL_UPDATED",
-      "skill:delete": "SKILL_DELETED",
-      "skill:import": "USER_ACTION",
-      "skill:preview": "USER_ACTION",
-      "skill:use": "USER_ACTION",
-      "skill:test": "USER_ACTION",
-      "skill:execute": "USER_ACTION",
-      "skill:test:fail": "USER_ACTION",
-      "skill:execute:fail": "USER_ACTION",
-      "skill:file:update": "USER_ACTION",
-      "skill:file:restore": "USER_ACTION",
-      "workflow:create": "WORKFLOW_CREATED",
-      "workflow:update": "WORKFLOW_UPDATED",
-      "workflow:delete": "WORKFLOW_DELETED",
-      "workflow:run:start": "WORKFLOW_RUN_STARTED",
-      "workflow:run:complete": "WORKFLOW_RUN_COMPLETED",
-      "workflow:run:fail": "WORKFLOW_RUN_FAILED",
-      "skill-change:request": "USER_ACTION",
-      "skill-change:approve": "USER_ACTION",
-      "skill-change:reject": "USER_ACTION",
-      "user:role:update": "USER_ACTION",
-      "user:status:update": "USER_ACTION",
-      "auth:status-denied": "USER_ACTION",
-    };
-    return typeMap[action] || "USER_ACTION";
-  }
-
-  private shouldSkipEmail(action: string): boolean {
-    return action === "skill:list";
-  }
-
-  private getNotificationTitle(action: string): string {
-    const titleMap: Record<string, string> = {
-      "skill:list": "Skills Listed",
-      "skill:read": "Skill Read",
-      "skill:create": "New Skill Created",
-      "skill:update": "Skill Updated",
-      "skill:delete": "Skill Deleted",
-      "skill:import": "Skill Imported",
-      "skill:preview": "Skill Previewed",
-      "skill:use": "Skill Used",
-      "skill:test": "Skill Tested",
-      "skill:execute": "Skill Executed",
-      "skill:test:fail": "Skill Test Failed",
-      "skill:execute:fail": "Skill Execution Failed",
-      "skill:file:update": "Skill File Updated",
-      "skill:file:restore": "Skill File Restored",
-      "workflow:create": "New Workflow Created",
-      "workflow:update": "Workflow Updated",
-      "workflow:delete": "Workflow Deleted",
-      "workflow:run:start": "Workflow Execution Started",
-      "workflow:run:complete": "Workflow Execution Completed",
-      "workflow:run:fail": "Workflow Execution Failed",
-      "skill-change:request": "Skill Change Requested",
-      "skill-change:approve": "Skill Change Approved",
-      "skill-change:reject": "Skill Change Rejected",
-      "user:role:update": "User Role Updated",
-      "user:status:update": "User Status Updated",
-      "auth:status-denied": "Inactive User Blocked",
-    };
-    return titleMap[action] || "System Action";
-  }
-
   private getNotificationMessage(
     action: string,
     actorName: string,
@@ -364,8 +278,8 @@ export class NotificationService {
   }
 
   private getEmailContent(auditLog: AuditLog, actorName: string) {
-    const title = this.getNotificationTitle(auditLog.action);
-    const actionLabel = this.getActionLabel(auditLog.action);
+    const title = getNotificationTitle(auditLog.action);
+    const actionLabel = getActionLabel(auditLog.action);
     const metadata = toRecord(auditLog.metadata);
     const changes = toRecord(auditLog.changes);
     const skillName = getStringValue(metadata.skillName) || auditLog.resourceId;
@@ -477,36 +391,6 @@ export class NotificationService {
     };
   }
 
-  private getActionLabel(action: string) {
-    const labelMap: Record<string, string> = {
-      "skill:read": "Skill read",
-      "skill:create": "Skill created",
-      "skill:update": "Skill updated",
-      "skill:delete": "Skill deleted",
-      "skill:import": "Skill imported",
-      "skill:preview": "Skill previewed",
-      "skill:use": "Skill used",
-      "skill:test": "Skill tested",
-      "skill:execute": "Skill executed",
-      "skill:test:fail": "Skill test failed",
-      "skill:execute:fail": "Skill execution failed",
-      "skill:file:update": "Skill file updated",
-      "skill:file:restore": "Skill file restored",
-      "workflow:create": "Workflow created",
-      "workflow:update": "Workflow updated",
-      "workflow:delete": "Workflow deleted",
-      "workflow:run:start": "Workflow run started",
-      "workflow:run:complete": "Workflow run completed",
-      "workflow:run:fail": "Workflow run failed",
-      "skill-change:request": "Skill change requested",
-      "skill-change:approve": "Skill change approved",
-      "skill-change:reject": "Skill change rejected",
-      "user:role:update": "User role updated",
-      "user:status:update": "User status updated",
-      "auth:status-denied": "Inactive user blocked",
-    };
-    return labelMap[action] || action;
-  }
 }
 
 let notificationService: NotificationService;

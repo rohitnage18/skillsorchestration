@@ -36,6 +36,9 @@ FROM_EMAIL=noreply@example.com
 
 # Optional token for VS Code/external skill event reports
 SKILL_EVENTS_TOKEN=change-me
+
+# Optional. When true, conductor UI skill previews are logged as skill:preview
+ENABLE_SKILL_PREVIEW_TRACKING=false
 ```
 
 Admin emails are sent to users in the database with `role = "ADMIN"`.
