@@ -764,6 +764,77 @@ button {
   margin-bottom: 22px;
 }
 
+.authoring-wizard {
+  margin-bottom: 24px;
+  padding: 26px;
+  border-radius: 30px;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  background:
+    radial-gradient(circle at top right, rgba(20, 184, 166, 0.1), transparent 28%),
+    linear-gradient(180deg, rgba(7, 12, 23, 0.96), rgba(15, 23, 42, 0.96));
+  box-shadow: 0 24px 56px rgba(15, 23, 42, 0.22);
+}
+
+.authoring-wizard-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 22px;
+}
+
+.authoring-wizard-header h2 {
+  margin: 8px 0 0;
+  font-size: 1.8rem;
+}
+
+.authoring-wizard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr);
+  gap: 18px;
+}
+
+.wizard-panel,
+.wizard-helper-card {
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(2, 6, 23, 0.52);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.wizard-inline-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.wizard-textarea.short {
+  min-height: 132px;
+}
+
+.wizard-reference-block {
+  display: grid;
+  gap: 6px;
+}
+
+.wizard-helper-card {
+  margin-top: 18px;
+}
+
+.wizard-helper-list {
+  margin: 14px 0 0;
+  padding-left: 18px;
+  color: #cbd5e1;
+  line-height: 1.7;
+}
+
+.wizard-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
 .stat-card {
   padding: 18px 20px;
   border-radius: 22px;
@@ -2395,7 +2466,9 @@ button:disabled,
   .skill-shell,
   .dashboard-panels,
   .conductor-shell,
-  .registry-layout {
+  .registry-layout,
+  .authoring-wizard-grid,
+  .wizard-inline-grid {
     grid-template-columns: 1fr;
   }
 

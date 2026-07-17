@@ -31,6 +31,21 @@ const skillStorageTestHooks = {
   db: null,
   logAction: null,
 };
+const DEFAULT_GUIDANCE_SECTIONS = [
+  "## When to use this skill",
+  "- Add the kinds of requests or repository situations that should trigger this skill.",
+  "",
+  "## Primary role",
+  "- Describe the senior role this skill should play and how it should collaborate.",
+  "",
+  "## Workflow",
+  "1. Review the relevant code, docs, and constraints before proposing changes.",
+  "2. Use the selected references to ground recommendations and implementation details.",
+  "3. Highlight tradeoffs, validation steps, and any follow-up work needed.",
+  "",
+  "## Output expectations",
+  "- Produce concrete, actionable guidance and avoid generic filler.",
+];
 
 function safeJoin(base, target) {
   const resolved = path.resolve(base, target);
@@ -284,6 +299,119 @@ function parseSkillFrontmatter(content) {
     name: nameMatch ? nameMatch[1].trim() : "",
     description: descriptionMatch ? descriptionMatch[1].trim() : "",
   };
+}
+
+function toSentenceCase(value) {
+  const normalized = String(value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return "";
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function slugifyReferenceName(value, fallback = "reference") {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || fallback;
+}
+
+function normalizeSkillAuthoringOptions(options = {}) {
+  const role = sanitizeText(options.role || "", 120, "Role");
+  const owner = sanitizeText(options.owner || "", 120, "Owner");
+  const reviewer = sanitizeText(options.reviewer || "", 120, "Reviewer");
+  const qualityStatus = ["draft", "reviewed", "production-ready"].includes(options.qualityStatus)
+    ? options.qualityStatus
+    : "draft";
+  const triggerDescription = sanitizeText(
+    options.triggerDescription || "",
+    240,
+    "Trigger description"
+  );
+  const tags = Array.isArray(options.tags)
+    ? Array.from(
+        new Set(
+          options.tags
+            .map((tag) => sanitizeText(tag, 40, "Tag").toLowerCase())
+            .filter(Boolean)
+        )
+      ).slice(0, 12)
+    : [];
+  const starterReferences = Array.isArray(options.starterReferences)
+    ? options.starterReferences
+        .map((reference, index) => {
+          const title = sanitizeText(reference?.title || `Reference ${index + 1}`, 120, "Reference title");
+          const summary = sanitizeText(reference?.summary || "", 240, "Reference summary");
+          return { title, summary };
+        })
+        .filter((reference) => reference.title)
+        .slice(0, 8)
+    : [];
+
+  return {
+    role,
+    owner,
+    reviewer,
+    qualityStatus,
+    triggerDescription,
+    tags,
+    starterReferences,
+  };
+}
+
+function buildSkillDocument(skillName, description, options = {}) {
+  const roleHeading = options.role ? `Act as a senior ${options.role}.` : "Act as a senior specialist for this skill.";
+  const triggerLine = options.triggerDescription
+    ? `Trigger this skill when requests match: ${options.triggerDescription}.`
+    : `Trigger this skill when the user explicitly needs help with ${skillName} work.`;
+  const referencesSection =
+    options.starterReferences.length > 0
+      ? [
+          "## Reference routing",
+          ...options.starterReferences.map((reference) => {
+            const fileName = `${slugifyReferenceName(reference.title)}.md`;
+            return `- Use \`references/${fileName}\` for ${reference.title.toLowerCase()}.`;
+          }),
+          "",
+        ]
+      : [];
+
+  return [
+    "---",
+    `name: ${skillName}`,
+    `description: ${description}`,
+    "---",
+    "",
+    `# ${toSentenceCase(skillName)}`,
+    "",
+    roleHeading,
+    "",
+    triggerLine,
+    "",
+    ...DEFAULT_GUIDANCE_SECTIONS,
+    "",
+    ...referencesSection,
+  ].join("\n").trim() + "\n";
+}
+
+function buildReferenceDocument(skillName, reference) {
+  return [
+    `# ${reference.title}`,
+    "",
+    reference.summary || `Reference guidance for ${skillName}.`,
+    "",
+    "## Key guidance",
+    "- Add concrete framework, workflow, or domain-specific notes here.",
+    "- Capture standards, pitfalls, and decision rules that should guide this skill.",
+  ].join("\n");
 }
 
 function extractSkillBody(content) {
@@ -972,26 +1100,55 @@ function ensureSkillExists(skillName) {
   return skillDir;
 }
 
-async function createSkill(skillName, description, userId) {
+async function createSkill(skillName, description, userId, options = {}) {
   const normalized = normalizeSkillName(skillName);
   const safeDescription = sanitizeDescription(description);
+  const authoringOptions = normalizeSkillAuthoringOptions(options);
   const skillDir = safeJoin(SKILLS_ROOT, normalized);
   if (fs.existsSync(skillDir)) {
     throw new Error(`A skill with this name already exists: ${normalized}`);
   }
   fs.mkdirSync(skillDir, { recursive: true });
   fs.mkdirSync(path.join(skillDir, "references"), { recursive: true });
-  const content = `---\nname: ${normalized}\ndescription: ${safeDescription}\n---\n\n# ${normalized}\n\nDescribe this skill here.\n`;
+  const content = buildSkillDocument(normalized, safeDescription, authoringOptions);
   fs.writeFileSync(path.join(skillDir, "SKILL.md"), content, "utf-8");
+  for (const reference of authoringOptions.starterReferences) {
+    const fileName = `${slugifyReferenceName(reference.title)}.md`;
+    fs.writeFileSync(
+      path.join(skillDir, "references", fileName),
+      buildReferenceDocument(normalized, reference),
+      "utf-8"
+    );
+  }
+  saveSkillState(normalized, {
+    ...DEFAULT_SKILL_STATE,
+    tags: authoringOptions.tags,
+    owner: authoringOptions.owner,
+    reviewer: authoringOptions.reviewer,
+    qualityStatus: authoringOptions.qualityStatus,
+  });
   await logSkillActivity({
     userId,
     action: "skill:create",
     resourceId: normalized,
     changes: {
       before: null,
-      after: { skillName: normalized, description: safeDescription },
+      after: {
+        skillName: normalized,
+        description: safeDescription,
+        role: authoringOptions.role,
+        owner: authoringOptions.owner,
+        reviewer: authoringOptions.reviewer,
+        tags: authoringOptions.tags,
+        referenceCount: authoringOptions.starterReferences.length,
+      },
     },
-    metadata: { skillName: normalized, source: "conductor-ui" },
+    metadata: {
+      skillName: normalized,
+      source: "conductor-ui",
+      authoringMode: authoringOptions.starterReferences.length > 0 || authoringOptions.owner ? "wizard" : "basic",
+      triggerDescription: authoringOptions.triggerDescription,
+    },
   });
   return normalized;
 }

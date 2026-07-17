@@ -4,6 +4,20 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const initialToast = { visible: false, message: "", type: "info" };
+const initialWizardState = {
+  skillName: "",
+  description: "",
+  role: "",
+  owner: "",
+  reviewer: "",
+  qualityStatus: "draft",
+  triggerDescription: "",
+  tags: "",
+  referenceOneTitle: "",
+  referenceOneSummary: "",
+  referenceTwoTitle: "",
+  referenceTwoSummary: "",
+};
 
 function getRequestHeaders() {
   return {
@@ -18,6 +32,9 @@ export default function SkillsHome() {
   const [filter, setFilter] = useState("all");
   const [tag, setTag] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizard, setWizard] = useState(initialWizardState);
   const [toast, setToast] = useState(initialToast);
 
   useEffect(() => {
@@ -60,38 +77,90 @@ export default function SkillsHome() {
     }
   };
 
-  const createSkill = async () => {
-    const skillName = window.prompt("New skill ID (letters, numbers, hyphens, underscores):");
-    if (!skillName) return;
-    const description = "New skill";
+  const updateWizardField = (field, value) => {
+    setWizard((current) => ({ ...current, [field]: value }));
+  };
 
+  const resetWizard = () => {
+    setWizard(initialWizardState);
+    setWizardOpen(false);
+  };
+
+  const createSkill = async () => {
+    const skillName = wizard.skillName.trim();
+    const description = wizard.description.trim() || "New skill";
+    const tags = wizard.tags
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+    const starterReferences = [
+      {
+        title: wizard.referenceOneTitle.trim(),
+        summary: wizard.referenceOneSummary.trim(),
+      },
+      {
+        title: wizard.referenceTwoTitle.trim(),
+        summary: wizard.referenceTwoSummary.trim(),
+      },
+    ].filter((reference) => reference.title);
+
+    if (!skillName) {
+      setToast({ visible: true, message: "Skill ID is required.", type: "error" });
+      return;
+    }
+
+    setIsCreating(true);
     try {
       const res = await fetch("/api/skills", {
         method: "POST",
         headers: getRequestHeaders(),
-        body: JSON.stringify({ skillName, description }),
+        body: JSON.stringify({
+          skillName,
+          description,
+          role: wizard.role,
+          owner: wizard.owner,
+          reviewer: wizard.reviewer,
+          qualityStatus: wizard.qualityStatus,
+          triggerDescription: wizard.triggerDescription,
+          tags,
+          starterReferences,
+        }),
       });
       const data = await res.json();
       if (res.status === 403) {
-        await requestSkillCreate(skillName, description);
+        await requestSkillCreate({
+          skillName,
+          description,
+          role: wizard.role,
+          owner: wizard.owner,
+          reviewer: wizard.reviewer,
+          qualityStatus: wizard.qualityStatus,
+          triggerDescription: wizard.triggerDescription,
+          tags,
+          starterReferences,
+        });
         setToast({ visible: true, message: `Approval requested for ${skillName}`, type: "success" });
+        resetWizard();
         return;
       }
       if (!res.ok) throw new Error(data.error || "Unable to create skill");
       setToast({ visible: true, message: `Created ${data.skillName}`, type: "success" });
       setQuery("");
+      resetWizard();
       fetchSkills("", filter, tag);
       fetchInsights();
     } catch (error) {
       setToast({ visible: true, message: error.message, type: "error" });
+    } finally {
+      setIsCreating(false);
     }
   };
 
-  const requestSkillCreate = async (skillName, description) => {
+  const requestSkillCreate = async (payload) => {
     const res = await fetch("/api/skill-change-requests", {
       method: "POST",
       headers: getRequestHeaders(),
-      body: JSON.stringify({ type: "SKILL_CREATE", skillName, description }),
+      body: JSON.stringify({ type: "SKILL_CREATE", ...payload }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Unable to request skill creation");
@@ -125,10 +194,174 @@ export default function SkillsHome() {
             <h1>Browse approved skills.</h1>
             <p className="page-copy">Open a skill to validate it, inspect health, and request import only when it is ready.</p>
           </div>
-          <button className="button primary" onClick={createSkill}>
-            Request new skill
+          <button className="button primary" onClick={() => setWizardOpen((value) => !value)}>
+            {wizardOpen ? "Close wizard" : "Create skill"}
           </button>
         </div>
+
+        {wizardOpen ? (
+          <section className="authoring-wizard">
+            <div className="authoring-wizard-header">
+              <div>
+                <p className="eyebrow">Skill authoring wizard</p>
+                <h2>Scaffold a reusable skill</h2>
+                <p className="page-copy">
+                  Define the role, trigger wording, metadata, and starter references in one place.
+                </p>
+              </div>
+              <span className="status-pill neutral">Step 1 of 1</span>
+            </div>
+
+            <div className="authoring-wizard-grid">
+              <div className="wizard-panel">
+                <label className="form-field">
+                  <span>Skill ID</span>
+                  <input
+                    className="search-field"
+                    value={wizard.skillName}
+                    onChange={(event) => updateWizardField("skillName", event.target.value)}
+                    placeholder="ai-ops"
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Description</span>
+                  <textarea
+                    className="editor-textarea wizard-textarea short"
+                    value={wizard.description}
+                    onChange={(event) => updateWizardField("description", event.target.value)}
+                    placeholder="Use this skill for..."
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Senior role</span>
+                  <input
+                    className="search-field"
+                    value={wizard.role}
+                    onChange={(event) => updateWizardField("role", event.target.value)}
+                    placeholder="AI platform engineer"
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Trigger description</span>
+                  <textarea
+                    className="editor-textarea wizard-textarea short"
+                    value={wizard.triggerDescription}
+                    onChange={(event) => updateWizardField("triggerDescription", event.target.value)}
+                    placeholder="Requests about model serving, evaluations, prompt safety..."
+                  />
+                </label>
+                <div className="wizard-inline-grid">
+                  <label className="form-field">
+                    <span>Owner</span>
+                    <input
+                      className="search-field"
+                      value={wizard.owner}
+                      onChange={(event) => updateWizardField("owner", event.target.value)}
+                      placeholder="platform-team"
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span>Reviewer</span>
+                    <input
+                      className="search-field"
+                      value={wizard.reviewer}
+                      onChange={(event) => updateWizardField("reviewer", event.target.value)}
+                      placeholder="qa-lead"
+                    />
+                  </label>
+                </div>
+                <div className="wizard-inline-grid">
+                  <label className="form-field">
+                    <span>Quality status</span>
+                    <select
+                      className="search-field"
+                      value={wizard.qualityStatus}
+                      onChange={(event) => updateWizardField("qualityStatus", event.target.value)}
+                    >
+                      <option value="draft">Draft</option>
+                      <option value="reviewed">Reviewed</option>
+                      <option value="production-ready">Production ready</option>
+                    </select>
+                  </label>
+                  <label className="form-field">
+                    <span>Tags</span>
+                    <input
+                      className="search-field"
+                      value={wizard.tags}
+                      onChange={(event) => updateWizardField("tags", event.target.value)}
+                      placeholder="ai, backend, testing"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="wizard-panel">
+                <div className="wizard-reference-block">
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">Starter references</p>
+                      <h3>Reference pack</h3>
+                    </div>
+                  </div>
+                  <label className="form-field">
+                    <span>Reference 1 title</span>
+                    <input
+                      className="search-field"
+                      value={wizard.referenceOneTitle}
+                      onChange={(event) => updateWizardField("referenceOneTitle", event.target.value)}
+                      placeholder="deployment-and-rollback"
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span>Reference 1 summary</span>
+                    <textarea
+                      className="editor-textarea wizard-textarea short"
+                      value={wizard.referenceOneSummary}
+                      onChange={(event) => updateWizardField("referenceOneSummary", event.target.value)}
+                      placeholder="Guidance for..."
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span>Reference 2 title</span>
+                    <input
+                      className="search-field"
+                      value={wizard.referenceTwoTitle}
+                      onChange={(event) => updateWizardField("referenceTwoTitle", event.target.value)}
+                      placeholder="evaluation-and-monitoring"
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span>Reference 2 summary</span>
+                    <textarea
+                      className="editor-textarea wizard-textarea short"
+                      value={wizard.referenceTwoSummary}
+                      onChange={(event) => updateWizardField("referenceTwoSummary", event.target.value)}
+                      placeholder="Checks, KPIs, and validation focus..."
+                    />
+                  </label>
+                </div>
+
+                <div className="wizard-helper-card">
+                  <p className="eyebrow">What gets scaffolded</p>
+                  <ul className="wizard-helper-list">
+                    <li>`SKILL.md` with role, trigger wording, workflow, and output expectations</li>
+                    <li>`references/*.md` starter files for the titles you provide</li>
+                    <li>`skill-state.json` metadata for owner, reviewer, tags, and readiness</li>
+                  </ul>
+                </div>
+
+                <div className="wizard-actions">
+                  <button className="button primary" onClick={createSkill} disabled={isCreating}>
+                    {isCreating ? "Creating..." : "Create scaffold"}
+                  </button>
+                  <button className="button secondary" onClick={resetWizard} disabled={isCreating}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <div className="top-stat-grid">
           <div className="stat-card">

@@ -14,6 +14,21 @@ export const skillChangeRequestSchema = z.discriminatedUnion("type", [
     type: z.literal("SKILL_CREATE"),
     skillName: skillNameSchema,
     description: descriptionSchema,
+    role: z.string().trim().max(120).optional(),
+    owner: z.string().trim().max(120).optional(),
+    reviewer: z.string().trim().max(120).optional(),
+    qualityStatus: z.enum(["draft", "reviewed", "production-ready"]).optional(),
+    triggerDescription: z.string().trim().max(240).optional(),
+    tags: z.array(z.string().trim().max(40)).max(12).optional(),
+    starterReferences: z
+      .array(
+        z.object({
+          title: z.string().trim().min(1).max(120),
+          summary: z.string().trim().max(240).optional(),
+        })
+      )
+      .max(8)
+      .optional(),
   }),
   z.object({
     type: z.literal("SKILL_IMPORT"),
@@ -181,7 +196,15 @@ async function applySkillChangeRequest(request, reviewerId) {
   const payload = parseSkillChangeRequest(request.payload);
 
   if (payload.type === "SKILL_CREATE") {
-    const skillName = await createSkill(payload.skillName, payload.description || "New skill", reviewerId);
+    const skillName = await createSkill(payload.skillName, payload.description || "New skill", reviewerId, {
+      role: payload.role,
+      owner: payload.owner,
+      reviewer: payload.reviewer,
+      qualityStatus: payload.qualityStatus,
+      triggerDescription: payload.triggerDescription,
+      tags: payload.tags,
+      starterReferences: payload.starterReferences,
+    });
     return { skillName };
   }
 
