@@ -5,6 +5,9 @@ import path from "node:path";
 
 import {
   __setSkillStorageTestHooks,
+  createSkill,
+  loadSkill,
+  loadSkillState,
   importSkill,
   loadLatestSkillQaReport,
   saveFile,
@@ -87,6 +90,55 @@ test("filesystem skill import logs notification-ready audit data", async () => {
   assert.equal(logged[0].resource, "skill");
   assert.equal(logged[0].metadata.skillName, skillName);
   assert.equal(logged[0].metadata.importedTo, importName);
+});
+
+test("skill creation scaffolds wizard metadata and starter references", async () => {
+  const skillName = "test-skill-wizard-create";
+  const logged = [];
+
+  __setSkillStorageTestHooks({
+    db: makeFakeDb(),
+    logAction: async (entry) => {
+      logged.push(entry);
+      return { success: true };
+    },
+  });
+
+  try {
+    const created = await createSkill(skillName, "Use this skill for AI release checks.", "admin-user", {
+      role: "AI release engineer",
+      owner: "platform-team",
+      reviewer: "qa-lead",
+      qualityStatus: "reviewed",
+      triggerDescription: "release readiness, model deployment, rollback planning",
+      tags: ["ai", "delivery"],
+      starterReferences: [
+        { title: "deployment-and-rollback", summary: "Deployment safety checks." },
+        { title: "evaluation-and-monitoring", summary: "Evaluation and monitoring expectations." },
+      ],
+    });
+
+    const loaded = loadSkill(skillName);
+    const state = loadSkillState(skillName);
+
+    assert.equal(created, skillName);
+    assert.match(loaded.skill, /Act as a senior AI release engineer\./);
+    assert.match(loaded.skill, /Trigger this skill when requests match: release readiness, model deployment, rollback planning\./);
+    assert.equal(loaded.references.length, 2);
+    assert.ok(loaded.references.some((reference) => reference.name === "deployment-and-rollback.md"));
+    assert.ok(loaded.references.some((reference) => reference.name === "evaluation-and-monitoring.md"));
+    assert.deepEqual(state.tags, ["ai", "delivery"]);
+    assert.equal(state.owner, "platform-team");
+    assert.equal(state.reviewer, "qa-lead");
+    assert.equal(state.qualityStatus, "reviewed");
+  } finally {
+    __setSkillStorageTestHooks();
+    cleanupSkillFixture(skillName);
+  }
+
+  assert.equal(logged.length, 1);
+  assert.equal(logged[0].action, "skill:create");
+  assert.equal(logged[0].metadata.authoringMode, "wizard");
 });
 
 test("filesystem SKILL.md edits log skill:file:update with skill metadata", async () => {
