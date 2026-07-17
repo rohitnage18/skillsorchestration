@@ -62,14 +62,20 @@ test("notification mapping covers conductor and registry events", () => {
   assert.equal(mapActionToNotificationType("skill:file:update"), "USER_ACTION");
   assert.equal(mapActionToNotificationType("skill:execute"), "USER_ACTION");
   assert.equal(mapActionToNotificationType("context:update"), "USER_ACTION");
+  assert.equal(mapActionToNotificationType("user:branch:update"), "USER_ACTION");
+  assert.equal(mapActionToNotificationType("user:external-id:update"), "USER_ACTION");
 });
 
 test("notification titles and labels cover tracked skill and context actions", () => {
   assert.equal(getNotificationTitle("skill:import"), "Skill Imported");
   assert.equal(getNotificationTitle("skill:file:restore"), "Skill File Restored");
   assert.equal(getNotificationTitle("context:update"), "Context File Updated");
+  assert.equal(getNotificationTitle("user:branch:update"), "User Branch Updated");
+  assert.equal(getNotificationTitle("user:external-id:update"), "User External ID Updated");
   assert.equal(getActionLabel("skill:use"), "Skill used");
   assert.equal(getActionLabel("context:update"), "Context file updated");
+  assert.equal(getActionLabel("user:branch:update"), "User branch updated");
+  assert.equal(getActionLabel("user:external-id:update"), "User external ID updated");
 });
 
 test("shouldSkipEmail remains limited to intentionally noisy actions", () => {

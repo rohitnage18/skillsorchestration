@@ -40,7 +40,7 @@ AUTH_SECRET=replace-with-a-random-secret
 AUTH_URL=http://localhost:3000
 AUTH_TRUST_HOST=false
 ALLOW_FIRST_USER_ADMIN=false
-ADMIN_EMAILS=admin@example.com
+ADMIN_EMAILS=sanayborhade619@gmail.com
 GOOGLE_CLIENT_ID=replace-with-google-client-id
 GOOGLE_CLIENT_SECRET=replace-with-google-client-secret
 ```
@@ -95,8 +95,14 @@ status = ACTIVE
 New OAuth users are created as `PENDING` unless their email is listed in `ADMIN_EMAILS`
 or bootstrap admin mode is intentionally enabled. Admins must approve them before they can use protected APIs.
 
+Admin-created users can also be stored as `INVITED` before they are activated.
+
 MCP/VS Code users must already exist in Prisma with `status = ACTIVE`. Event reporting will reject
 unknown, pending, or disabled users even when `SKILL_EVENTS_TOKEN` is valid.
+
+For MCP/VS Code identity, assign each external user a stable `externalUserId` in the
+admin dashboard or `/api/users`. That value is what users should place into
+`MCP_USER_ID` or `skillsLibrary.userId`.
 
 After one admin exists, admins can manage users through the dashboard or API:
 
@@ -184,6 +190,7 @@ User actions:
 
 User statuses:
 
+- `INVITED` — created by an admin but not active yet.
 - `PENDING` — created but waiting for admin approval.
 - `ACTIVE` — allowed to use protected browser, MCP, and VS Code APIs.
 - `DISABLED` — blocked from sign-in/API usage until reactivated.

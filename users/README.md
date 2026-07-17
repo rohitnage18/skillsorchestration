@@ -3,8 +3,13 @@
 This folder is for normal users who only need to use skills from their laptop.
 
 Users do not need admin database access or SMTP credentials.
-They only enter their own user id, name, and email in local config.
+They only enter their own external user id, name, and email in local config.
 When they use a skill, the conductor app automatically saves/updates that user in the database.
+
+If users are contributing code in this repository, they should work on their own personal
+Git branch and open a manual pull request into `main` after CI passes. New personal
+branches should be confirmed with the user before creation and should preferably follow
+`users/<username>`.
 
 ## User Needs
 
@@ -12,7 +17,7 @@ When they use a skill, the conductor app automatically saves/updates that user i
 - `skills-mcp-server/` — MCP server for `list_skills` and `get_skill`.
 - Optional: `skills-vscode-extension/` — VS Code sidebar.
 - Admin-provided `CONDUCTOR_URL`.
-- Admin-provided user id/email.
+- Admin-provided external user id/email.
 - Required admin-provided `SKILL_EVENTS_TOKEN`.
 
 ## Install MCP Server
@@ -113,5 +118,6 @@ The Conductor browser app uses Google/GitHub login sessions.
 MCP and VS Code run outside that browser session, so they send user identity headers plus
 the required `SKILL_EVENTS_TOKEN`.
 
-Important: the token is not enough by itself. Your `MCP_USER_ID` must match an approved
-`ACTIVE` user record in Prisma.
+Important: the token is not enough by itself. Your `MCP_USER_ID` should match the
+user's admin-assigned `externalUserId`, and that user record must already be approved
+with `status = ACTIVE` in Prisma.

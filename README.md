@@ -32,6 +32,25 @@ The intended flow is:
 | `PROJECT_CONTEXT.md` | Human/project architecture context for this repository. |
 | `.vscode/mcp.json` | VS Code MCP config for the local skills server. |
 
+## CI/CD And Branch Safety
+
+This repo now includes GitHub Actions workflows that:
+
+- run CI on every non-`main` branch push
+- run validation again on pull requests into `main`
+- fail direct pushes to `main`
+- enforce a personal-branch workflow for active development
+
+In addition, the repository now treats the `quality-engineering` skill as the default
+senior-tester pass after meaningful code changes so updated work is re-verified for
+regressions, edge cases, and release confidence.
+
+See `docs/CI_CD_BRANCH_POLICY.md` for the full workflow and the GitHub branch protection settings needed to truly block direct pushes.
+
+The intended branch model is one working branch per user, confirmed with that user before
+creation, with all work pushed to that user's branch and merged to `main` only through a
+manual pull request.
+
 ## Admin Vs User Setup
 
 - Admins should start with `admin/README.md`.
@@ -63,6 +82,10 @@ skills/
 ```
 
 `SKILL.md` acts as the router/instruction file. Reference files contain deeper implementation guidance.
+
+The library now spans implementation, architecture, delivery, QA, security, product,
+data, mobile, and AI-oriented roles so agents can route work more deliberately instead of
+overloading the generic frontend/backend skills.
 
 ### MCP Server
 
@@ -366,6 +389,12 @@ The agent should:
 
 ## Useful Commands
 
+Run the full repository verification suite:
+
+```bash
+npm run verify:repo
+```
+
 Build conductor app:
 
 ```bash
@@ -407,6 +436,13 @@ The following builds pass:
 - `conductor-app`: `npm run build`
 - `skills-mcp-server`: `npm run build`
 - `skills-vscode-extension`: `npm run build`
+
+The repository now also includes:
+
+- repo-level verification command: `npm run verify:repo`
+- cross-surface contract tests comparing conductor, MCP server, and VS Code extension skill metadata
+- conductor smoke tests covering core pages plus skill summary and QA report APIs
+- GitHub Actions workflow: `.github/workflows/repo-verification.yml`
 
 ## Troubleshooting
 

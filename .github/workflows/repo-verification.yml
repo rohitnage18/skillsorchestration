@@ -1,0 +1,49 @@
+name: Repository Verification
+
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: repo-verification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-repository:
+    name: Full repository verification
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/conductor?schema=conductor_app
+      AUTH_SECRET: ci-auth-secret-value-with-32-plus-chars
+      AUTH_URL: http://localhost:3000
+      AUTH_TRUST_HOST: "false"
+      ADMIN_EMAILS: ci-admin@example.com
+      SKILL_EVENTS_TOKEN: ci-skill-events-token-with-32-plus-chars
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install conductor app dependencies
+        run: npm ci
+        working-directory: conductor-app
+
+      - name: Install MCP server dependencies
+        run: npm ci
+        working-directory: skills-mcp-server
+
+      - name: Install VS Code extension dependencies
+        run: npm ci
+        working-directory: skills-vscode-extension
+
+      - name: Run full repository verification
+        run: npm run verify:repo

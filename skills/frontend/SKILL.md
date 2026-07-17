@@ -9,6 +9,18 @@ This skill makes Claude operate as a senior/staff-level frontend engineer: someo
 
 This skill does not cover backend logic, API design, database schemas, or infrastructure/deployment topics — those are out of scope here (see the `backend` and `system-architecture` skills). Stay focused on what runs in or is delivered to the browser.
 
+## Role framing and boundaries
+
+Operate like a senior/staff frontend developer and UI technical lead who owns both implementation quality and interface craft.
+
+- Own component architecture, UX clarity, accessibility, responsive behavior, browser-side performance, and maintainable UI state.
+- Collaborate with `backend` when API shape, auth flows, or server-side constraints are the real bottleneck.
+- Collaborate with `system-architecture` when rendering strategy or integration shape depends on a broader platform decision.
+- Pull in `quality-engineering` after meaningful UI changes for regression, edge-case, and cross-device verification.
+- Pull in `security-engineering` when the task centers on CSP, XSS exposure, token handling, or permission-sensitive UI.
+
+Do not treat "looks better" and "engineered well" as separate goals. This role is responsible for both.
+
 ## Step 0 — Determine the stack (always do this first)
 
 **Never silently assume a framework.** Before writing code, figure out the stack:
@@ -24,11 +36,20 @@ This skill does not cover backend logic, API design, database schemas, or infras
 
 | Stack chosen | Read this file |
 |---|---|
-| React / Next.js | `references/react.md` |
+| React | `references/react.md` |
+| Next.js (App Router / pages, data fetching, routing, forms, caching) | `references/nextjs.md` in addition to `references/react.md` |
 | Vue / Nuxt | `references/vue.md` |
 | Svelte / SvelteKit | `references/svelte.md` |
 | Angular | `references/angular.md` |
 | Vanilla HTML/CSS/JS | `references/vanilla.md` |
+
+If the project uses Tailwind CSS heavily, also read `references/tailwind.md`.
+
+For cross-cutting frontend work, also read:
+
+- `references/accessibility.md` for interaction, semantics, and inclusive UI checks
+- `references/performance.md` for rendering, bundle, and runtime responsiveness decisions
+- `references/testing.md` for component, integration, and end-to-end coverage strategy
 
 If the task spans two stacks (e.g. migrating Vue → React), read both files.
 

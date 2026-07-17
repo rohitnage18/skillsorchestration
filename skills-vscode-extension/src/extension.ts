@@ -1,5 +1,5 @@
 /**
- * Skills Library — VS Code extension entry point.
+ * Skills Library - VS Code extension entry point.
  *
  * Provides a sidebar tree view of a local SKILL.md library (the same
  * skills/ folder used by skills-mcp-server's SKILLS_PATH) and lets you:
@@ -110,9 +110,8 @@ function getSkillFileEvent(skillsPath: string, uri: vscode.Uri): SkillEventInput
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-  // Tracks the most recently active *text* editor (not the preview/output
-  // panel itself) so "Insert at Cursor" has somewhere sensible to insert
-  // into even after the user has clicked into the sidebar or a preview tab.
+  // Tracks the most recently active text editor so "Insert at Cursor"
+  // has somewhere sensible to insert content after previewing skills.
   let lastActiveTextEditor: vscode.TextEditor | undefined = vscode.window.activeTextEditor;
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor((editor) => {
@@ -180,9 +179,8 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   context.subscriptions.push(treeView);
 
-  // --- Read-only preview support -----------------------------------------
-  // A virtual document scheme lets us open skill content in a normal,
-  // read-only-by-convention editor tab without writing a temp file to disk.
+  // A virtual document scheme lets us preview skill content without
+  // creating temporary files on disk.
   const previewContentProvider = new (class implements vscode.TextDocumentContentProvider {
     private content = new Map<string, string>();
 
@@ -191,15 +189,13 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     provideTextDocumentContent(uri: vscode.Uri): string {
-      return this.content.get(uri.toString()) ?? "(content not found — try refreshing)";
+      return this.content.get(uri.toString()) ?? "(content not found - try refreshing)";
     }
   })();
 
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, previewContentProvider)
   );
-
-  // --- Commands ------------------------------------------------------------
 
   context.subscriptions.push(
     vscode.commands.registerCommand("skillsLibrary.refresh", async () => {
@@ -222,7 +218,7 @@ export function activate(context: vscode.ExtensionContext): void {
         validateInput: (value) => (value.trim().length === 0 ? "Path cannot be empty" : undefined),
       });
       if (picked === undefined) {
-        return; // user cancelled
+        return;
       }
       await vscode.workspace
         .getConfiguration("skillsLibrary")
@@ -272,7 +268,7 @@ export function activate(context: vscode.ExtensionContext): void {
       async (node?: SkillTreeNode | SkillInfo) => {
         const skill = await resolveSkillForInsert(node, treeProvider);
         if (!skill) {
-          return; // user cancelled the picker, or there was nothing to insert
+          return;
         }
 
         const editor = lastActiveTextEditor;
@@ -300,9 +296,6 @@ export function activate(context: vscode.ExtensionContext): void {
     )
   );
 
-  // Initial load, plus a watcher so external edits (e.g. adding a 7th skill
-  // folder on disk, or editing a SKILL.md in another tool) are picked up
-  // automatically rather than requiring a manual refresh every time.
   treeProvider.reload().then(() => {
     const err = treeProvider.getLastError();
     if (err) {
@@ -352,11 +345,8 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 /**
- * The Insert command can be invoked three ways: from the tree item's inline
- * icon (node is a SkillTreeNode), from the command palette with nothing
- * selected (node is undefined, so show a quick-pick), or in principle
- * programmatically with a SkillInfo directly. This normalizes all three into
- * a single SkillInfo to insert.
+ * The Insert command can be invoked from the tree, from the command palette,
+ * or programmatically with a SkillInfo. This normalizes all three into one skill.
  */
 async function resolveSkillForInsert(
   node: SkillTreeNode | SkillInfo | undefined,
@@ -366,15 +356,13 @@ async function resolveSkillForInsert(
     if (node.kind === "skill") {
       return node.skill;
     }
-    // Insert was somehow invoked on a reference-file node; insert always
-    // operates at the skill level, so resolve up to that file's parent skill.
     return treeProvider.getSkillByName(node.skillName);
   }
   if (node && "skillMdPath" in node) {
-    return node; // already a SkillInfo
+    return node;
   }
 
-  // No node — command palette invocation. Show a quick-pick of all skills.
+  // No node - command palette invocation. Show a quick-pick of all skills.
   const skillsPath = vscode.workspace
     .getConfiguration("skillsLibrary")
     .get<string>("skillsPath", "");
@@ -403,7 +391,5 @@ async function resolveSkillForInsert(
 }
 
 export function deactivate(): void {
-  // No explicit cleanup needed — everything of note is registered via
-  // context.subscriptions in activate() and VS Code disposes those
-  // automatically on deactivation.
+  // VS Code disposes subscriptions registered during activate().
 }

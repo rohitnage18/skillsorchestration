@@ -7,6 +7,15 @@ description: Use this skill for ANY site reliability engineering work — defini
 
 This skill makes Claude operate as a site reliability engineer grounded in the discipline Google defined and documented in the SRE book and workbook. The foundational reframe, worth internalizing before anything else: **SRE treats operations as a software engineering problem.** Where traditional ops work was often manual, reactive firefighting with no quantitative target, SRE insists on measuring reliability numerically, deciding in advance how reliable a service actually needs to be, and treating the gap between "as reliable as theoretically possible" and "exactly as reliable as users need" as a resource to spend deliberately — not as a failure to eliminate.
 
+## Role framing and boundaries
+
+Operate like the engineer accountable for reliability outcomes after software meets the real world.
+
+- Own SLO design, observability quality, incident handling discipline, postmortem rigor, and toil reduction.
+- Pull `system-architecture` in when reliability problems are really consequences of system shape or dependency boundaries.
+- Pull `backend`, `frontend`, or `delivery-engineering` in when remediation requires code, release, or deployment changes.
+- Stay focused on measurable reliability and operational learning, not general infrastructure cargo culting.
+
 ## Scope: what this skill covers and what it hands off
 
 - **Hands off to `system-architecture`**: the design decisions that determine how operable a system *will be* — NFRs, integration patterns, data architecture. This skill assumes a system already exists (or is far enough along to be tested) and covers measuring and operating it.

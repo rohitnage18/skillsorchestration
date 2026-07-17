@@ -9,6 +9,18 @@ This skill makes Claude operate as a senior/staff-level backend engineer: someon
 
 This skill does not cover frontend/client-side code (see the `frontend` skill), infrastructure/deployment/cloud topics like Kubernetes, Terraform, or CI/CD pipelines (see `system-architecture`), or IoT-specific protocols and constraints (see `iot`). Stay focused on the server-side application logic, its data layer, and the API surface it exposes.
 
+## Role framing and boundaries
+
+Operate like a senior/staff backend developer and technical lead for the service in question.
+
+- Own API shape inside the service boundary, domain logic, persistence design, auth checks, data integrity, and backend testability.
+- Collaborate with `system-architecture` when the question is really about service boundaries or cross-system communication.
+- Pull in `security-engineering` when the main risk is authz, secret exposure, attack surface, or hardening.
+- Pull in `delivery-engineering` for CI/CD, deployment workflow, or release automation.
+- Pull in `quality-engineering` after meaningful changes so backend behavior is re-verified, not just implemented.
+
+Prefer boring, durable engineering choices over cleverness that raises operational risk.
+
 ## Step 0 — Determine architecture, then language (in that order)
 
 Architecture decisions are largely language-agnostic and should be made *before* picking a language/framework — get this backwards and the language choice anchors thinking around the wrong shape.
@@ -62,6 +74,12 @@ Once the stack is chosen, read the matching file in `references/` before writing
 | Java | `references/java.md` |
 
 If the task spans two stacks (e.g. a polyglot microservices system, or migrating one service to another language), read both relevant files.
+
+For cross-cutting backend work, also read:
+
+- `references/api-design.md` for resource shape, versioning, contracts, and error models
+- `references/auth-and-session-patterns.md` for authentication, authorization, sessions, and token boundaries
+- `references/data-modeling-and-migrations.md` for schema design, migrations, and integrity safeguards
 
 ## Step 1 — Non-negotiable engineering bars
 

@@ -7,7 +7,9 @@ import {
   rejectSkillChangeRequest,
 } from "../../lib/skillChangeRequests.js";
 import {
+  getSkillInsights,
   getSkillVersionComparison,
+  listSkills,
   listSkillVersions,
   listVersionedSkillFiles,
   listImportedWorkspaces,
@@ -99,6 +101,10 @@ function formatVersionPreview(preview) {
   return text || "No preview available.";
 }
 
+function joinMeta(parts) {
+  return parts.filter(Boolean).join(" | ");
+}
+
 function buildAuditWhere(filters) {
   const where = {};
   if (filters.userId) where.userId = filters.userId;
@@ -112,6 +118,89 @@ function buildAuditWhere(filters) {
     if (filters.dateTo) where.createdAt.lte = new Date(`${filters.dateTo}T23:59:59.999Z`);
   }
   return where;
+}
+
+function normalizePreferredBranch(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  if (!/^(users\/[A-Za-z0-9._-]+|[A-Za-z0-9._-]+)$/.test(normalized)) {
+    throw new Error("Preferred branch must look like users/sanay or sanay.");
+  }
+
+  return normalized;
+}
+
+function collectUserActivity(logs, users) {
+  const activityByUser = new Map(
+    users.map((user) => [
+      user.id,
+      {
+        user,
+        totalActions: 0,
+        lastActionAt: null,
+        recentActions: new Set(),
+        touchedSkills: new Set(),
+        touchedWorkflows: new Set(),
+        touchedWorkspaces: new Set(),
+      },
+    ])
+  );
+
+  for (const log of logs) {
+    const activity =
+      activityByUser.get(log.userId) ||
+      {
+        user: log.user || { id: log.userId, email: log.userId, name: null },
+        totalActions: 0,
+        lastActionAt: null,
+        recentActions: new Set(),
+        touchedSkills: new Set(),
+        touchedWorkflows: new Set(),
+        touchedWorkspaces: new Set(),
+      };
+
+    activity.totalActions += 1;
+    activity.lastActionAt =
+      !activity.lastActionAt || new Date(log.createdAt) > new Date(activity.lastActionAt)
+        ? log.createdAt
+        : activity.lastActionAt;
+    activity.recentActions.add(log.action);
+
+    const metadata = log.metadata && typeof log.metadata === "object" ? log.metadata : {};
+
+    if (metadata.skillName) {
+      activity.touchedSkills.add(String(metadata.skillName));
+    } else if (log.resource === "skill" && log.resourceId) {
+      activity.touchedSkills.add(String(log.resourceId));
+    }
+
+    if (metadata.workflowName) {
+      activity.touchedWorkflows.add(String(metadata.workflowName));
+    } else if (metadata.workflowId) {
+      activity.touchedWorkflows.add(String(metadata.workflowId));
+    } else if (log.resource === "workflow" && log.resourceId) {
+      activity.touchedWorkflows.add(String(log.resourceId));
+    }
+
+    if (metadata.importedTo) {
+      activity.touchedWorkspaces.add(String(metadata.importedTo));
+    } else if (log.resource === "context" && log.resourceId) {
+      activity.touchedWorkspaces.add(String(log.resourceId));
+    }
+
+    activityByUser.set(log.userId, activity);
+  }
+
+  return Array.from(activityByUser.values())
+    .filter((entry) => entry.totalActions > 0)
+    .sort(
+      (left, right) =>
+        new Date(right.lastActionAt).getTime() - new Date(left.lastActionAt).getTime() ||
+        right.totalActions - left.totalActions
+    );
 }
 
 async function setUserRole(formData) {
@@ -168,7 +257,7 @@ async function setUserStatus(formData) {
 
   const userId = String(formData.get("userId") || "");
   const status = String(formData.get("status") || "");
-  if (!userId || !["PENDING", "ACTIVE", "DISABLED"].includes(status)) {
+  if (!userId || !["INVITED", "PENDING", "ACTIVE", "DISABLED"].includes(status)) {
     throw new Error("Valid user and status are required.");
   }
 
@@ -190,6 +279,99 @@ async function setUserStatus(formData) {
   await logAction({
     userId: session.user.id,
     action: "user:status:update",
+    resource: "user",
+    resourceId: updatedUser.id,
+    changes: {
+      before: existingUser,
+      after: updatedUser,
+    },
+    metadata: {
+      targetUserEmail: updatedUser.email,
+      source: "admin-dashboard",
+    },
+  });
+  revalidatePath("/admin");
+}
+
+async function setUserPreferredBranch(formData) {
+  "use server";
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") {
+    throw new Error("Admin permission is required.");
+  }
+
+  const userId = String(formData.get("userId") || "");
+  const preferredBranch = normalizePreferredBranch(formData.get("preferredBranch"));
+  if (!userId) {
+    throw new Error("Valid user is required.");
+  }
+
+  const existingUser = await db.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, name: true, preferredBranch: true },
+  });
+
+  if (!existingUser) {
+    throw new Error("User not found.");
+  }
+
+  const updatedUser = await db.user.update({
+    where: { id: userId },
+    data: { preferredBranch: preferredBranch || null },
+    select: { id: true, email: true, name: true, preferredBranch: true },
+  });
+
+  await logAction({
+    userId: session.user.id,
+    action: "user:branch:update",
+    resource: "user",
+    resourceId: updatedUser.id,
+    changes: {
+      before: existingUser,
+      after: updatedUser,
+    },
+    metadata: {
+      targetUserEmail: updatedUser.email,
+      source: "admin-dashboard",
+    },
+  });
+  revalidatePath("/admin");
+}
+
+async function setUserExternalIdentity(formData) {
+  "use server";
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") {
+    throw new Error("Admin permission is required.");
+  }
+
+  const userId = String(formData.get("userId") || "");
+  const externalUserId = String(formData.get("externalUserId") || "").trim();
+  if (!userId) {
+    throw new Error("Valid user is required.");
+  }
+  if (externalUserId && !/^[A-Za-z0-9._-]+$/.test(externalUserId)) {
+    throw new Error("External user id may contain only letters, numbers, dots, underscores, and hyphens.");
+  }
+
+  const existingUser = await db.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, name: true, externalUserId: true },
+  });
+
+  if (!existingUser) {
+    throw new Error("User not found.");
+  }
+
+  const updatedUser = await db.user.update({
+    where: { id: userId },
+    data: { externalUserId: externalUserId || null },
+    select: { id: true, email: true, name: true, externalUserId: true },
+  });
+
+  await logAction({
+    userId: session.user.id,
+    action: "user:external-id:update",
     resource: "user",
     resourceId: updatedUser.id,
     changes: {
@@ -323,11 +505,13 @@ export default async function AdminDashboardPage({ searchParams }) {
     return (
       <section className="admin-shell">
         <div className="empty-state">
-          <h1>{session.user.status === "PENDING" ? "Approval pending" : "Admin access required"}</h1>
+          <h1>{["PENDING", "INVITED"].includes(session.user.status) ? "Approval pending" : "Admin access required"}</h1>
           <p>
-            {session.user.status === "PENDING"
-              ? "Your account is signed in, but an admin still needs to approve it."
-              : "Your account is signed in, but it is not marked as `ADMIN` in Prisma."}
+            {session.user.status === "INVITED"
+              ? "Your account has been invited, but it is not active yet."
+              : session.user.status === "PENDING"
+                ? "Your account is signed in, but an admin still needs to approve it."
+                : "Your account is signed in, but it is not marked as `ADMIN` in Prisma."}
           </p>
         </div>
       </section>
@@ -379,6 +563,25 @@ export default async function AdminDashboardPage({ searchParams }) {
         )
       : null;
   const importedWorkspaces = listImportedWorkspaces();
+  const skillLibrary = listSkills();
+  const skillInsights = getSkillInsights();
+  const topSkillTags = skillInsights.tagSummary.slice(0, 8);
+  const topSkillOwners = skillInsights.ownerSummary.slice(0, 8);
+  const staleSkills = skillLibrary.filter((skill) => skill.freshnessStatus === "stale").slice(0, 8);
+  const topStableSkills = skillLibrary
+    .filter((skill) => skill.scorecard?.stability === "stable")
+    .sort((left, right) => right.scorecard.score - left.scorecard.score || left.name.localeCompare(right.name))
+    .slice(0, 8);
+  const atRiskSkills = skillLibrary
+    .filter((skill) => skill.healthStatus !== "passed" || skill.qualityStatus === "draft")
+    .slice(0, 8);
+  const latestQaReports = skillLibrary
+    .filter((skill) => skill.latestQaReport?.createdAt)
+    .sort(
+      (left, right) =>
+        new Date(right.latestQaReport.createdAt).getTime() - new Date(left.latestQaReport.createdAt).getTime()
+    )
+    .slice(0, 8);
   const selectedWorkspaceName =
     getStringParam(resolvedSearchParams, "contextWorkspace") || importedWorkspaces[0]?.name || "";
   const selectedWorkspace =
@@ -390,6 +593,7 @@ export default async function AdminDashboardPage({ searchParams }) {
   const [
     users,
     auditLogs,
+    userActivityLogs,
     notifications,
     pendingRequests,
     reviewedRequests,
@@ -398,6 +602,7 @@ export default async function AdminDashboardPage({ searchParams }) {
     userCount,
     adminCount,
     normalUserCount,
+    invitedUserCount,
     pendingUserCount,
     disabledUserCount,
     logCount,
@@ -418,9 +623,12 @@ export default async function AdminDashboardPage({ searchParams }) {
         id: true,
         email: true,
         name: true,
+        externalUserId: true,
+        preferredBranch: true,
         role: true,
         status: true,
         updatedAt: true,
+        lastSeenAt: true,
       },
     }),
     db.auditLog.findMany({
@@ -433,6 +641,19 @@ export default async function AdminDashboardPage({ searchParams }) {
             email: true,
             name: true,
             role: true,
+          },
+        },
+      },
+    }),
+    db.auditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 400,
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
           },
         },
       },
@@ -496,6 +717,7 @@ export default async function AdminDashboardPage({ searchParams }) {
     db.user.count(),
     db.user.count({ where: { role: "ADMIN" } }),
     db.user.count({ where: { role: "USER" } }),
+    db.user.count({ where: { status: "INVITED" } }),
     db.user.count({ where: { status: "PENDING" } }),
     db.user.count({ where: { status: "DISABLED" } }),
     db.auditLog.count(),
@@ -510,6 +732,8 @@ export default async function AdminDashboardPage({ searchParams }) {
     db.skillChangeRequest.count({ where: { status: "APPROVED" } }),
     db.skillChangeRequest.count({ where: { status: "REJECTED" } }),
   ]);
+
+  const userActivity = collectUserActivity(userActivityLogs, users);
 
   const deliverableEmailCount = sentEmailCount + failedEmailCount + pendingEmailCount;
   const emailDeliveryRate =
@@ -532,8 +756,8 @@ export default async function AdminDashboardPage({ searchParams }) {
         <div className="metric-card">
           <p>Users</p>
           <strong>{userCount}</strong>
-          <span>{adminCount} admin / {normalUserCount} user</span>
-          <span>{pendingUserCount} pending / {disabledUserCount} disabled</span>
+          <span>{joinMeta([`${adminCount} admin`, `${normalUserCount} user`])}</span>
+          <span>{joinMeta([`${invitedUserCount} invited`, `${pendingUserCount} pending`, `${disabledUserCount} disabled`])}</span>
         </div>
         <div className="metric-card">
           <p>Audit logs</p>
@@ -548,13 +772,19 @@ export default async function AdminDashboardPage({ searchParams }) {
         <div className="metric-card">
           <p>Email delivery</p>
           <strong>{emailDeliveryRate}%</strong>
-          <span>{sentEmailCount} sent / {failedEmailCount} failed / {pendingEmailCount} pending</span>
-          <span>{skippedEmailCount} skipped / {notConfiguredEmailCount} not configured</span>
+          <span>{joinMeta([`${sentEmailCount} sent`, `${failedEmailCount} failed`, `${pendingEmailCount} pending`])}</span>
+          <span>{joinMeta([`${skippedEmailCount} skipped`, `${notConfiguredEmailCount} not configured`])}</span>
         </div>
         <div className="metric-card">
           <p>Approvals</p>
           <strong>{pendingRequestCount}</strong>
-          <span>{approvedRequestCount} approved / {rejectedRequestCount} rejected</span>
+          <span>{joinMeta([`${approvedRequestCount} approved`, `${rejectedRequestCount} rejected`])}</span>
+        </div>
+        <div className="metric-card">
+          <p>Skill library</p>
+          <strong>{skillInsights.totalSkills}</strong>
+          <span>{joinMeta([`${skillInsights.importedSkills} imported`, `${skillInsights.readySkills} ready`])}</span>
+          <span>{joinMeta([`${skillInsights.healthSummary.failed || 0} failed`, `${skillInsights.healthSummary.warning || 0} warnings`])}</span>
         </div>
       </div>
 
@@ -640,8 +870,11 @@ export default async function AdminDashboardPage({ searchParams }) {
                   <div>
                     <strong>{formatPayload(request.payload)}</strong>
                     <span>
-                      {request.requestedBy?.name || request.requestedBy?.email || request.requestedById} · {request.type} ·{" "}
-                      {formatDate(request.createdAt)}
+                      {joinMeta([
+                        request.requestedBy?.name || request.requestedBy?.email || request.requestedById,
+                        request.type,
+                        formatDate(request.createdAt),
+                      ])}
                     </span>
                   </div>
                   <div className="admin-actions">
@@ -681,9 +914,11 @@ export default async function AdminDashboardPage({ searchParams }) {
                   <div>
                     <strong>{formatPayload(request.payload)}</strong>
                     <span>
-                      Requested by {request.requestedBy?.name || request.requestedBy?.email || request.requestedById} · Reviewed by{" "}
-                      {request.reviewedBy?.name || request.reviewedBy?.email || "unknown"} ·{" "}
-                      {request.reviewedAt ? formatDate(request.reviewedAt) : "No review time"}
+                      {joinMeta([
+                        `Requested by ${request.requestedBy?.name || request.requestedBy?.email || request.requestedById}`,
+                        `Reviewed by ${request.reviewedBy?.name || request.reviewedBy?.email || "unknown"}`,
+                        request.reviewedAt ? formatDate(request.reviewedAt) : "No review time",
+                      ])}
                     </span>
                   </div>
                   <span className={`status-pill ${request.status === "APPROVED" ? "success" : "danger"}`}>
@@ -758,7 +993,10 @@ export default async function AdminDashboardPage({ searchParams }) {
                         {selectedHistoryFile.skillName} / {selectedHistoryFile.filePath}
                       </strong>
                       <span>
-                        {selectedHistoryFile.versionCount} versions tracked · Latest {formatDate(new Date(selectedHistoryFile.latestVersion.createdAt))}
+                        {joinMeta([
+                          `${selectedHistoryFile.versionCount} versions tracked`,
+                          `Latest ${formatDate(new Date(selectedHistoryFile.latestVersion.createdAt))}`,
+                        ])}
                       </span>
                     </div>
                   ) : null}
@@ -769,7 +1007,10 @@ export default async function AdminDashboardPage({ searchParams }) {
                         <div>
                           <strong>{formatAction(version.action)}</strong>
                           <span>
-                            {formatVersionActor(version.actor)} · {formatDate(new Date(version.createdAt))}
+                            {joinMeta([
+                              formatVersionActor(version.actor),
+                              formatDate(new Date(version.createdAt)),
+                            ])}
                           </span>
                           <span>{formatVersionPreview(version.preview)}</span>
                         </div>
@@ -933,6 +1174,308 @@ export default async function AdminDashboardPage({ searchParams }) {
           )}
         </section>
 
+        <section className="admin-card wide">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Skill analytics</p>
+              <h2>Library health, tags, and QA reporting</h2>
+            </div>
+            <span className="status-pill neutral">{skillInsights.totalSkills} skills</span>
+          </div>
+
+          <div className="version-diff-stats">
+            <div className="summary-item">
+              <span>Healthy skills</span>
+              <strong>{skillInsights.healthSummary.passed || 0}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Warnings</span>
+              <strong>{skillInsights.healthSummary.warning || 0}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Failures</span>
+              <strong>{skillInsights.healthSummary.failed || 0}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Ready for use</span>
+              <strong>{skillInsights.readySkills}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Owned skills</span>
+              <strong>{skillInsights.ownedSkills}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Unowned skills</span>
+              <strong>{skillInsights.unownedSkills}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Stale skills</span>
+              <strong>{skillInsights.staleSkills}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Stable skills</span>
+              <strong>{skillInsights.stableSkills}</strong>
+            </div>
+          </div>
+
+          <div className="admin-grid">
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Tag distribution</p>
+                  <h3>Top library tags</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {topSkillTags.length > 0 ? (
+                  topSkillTags.map((tag) => (
+                    <div className="admin-row" key={tag.tag}>
+                      <div>
+                        <strong>{tag.tag}</strong>
+                        <span>Skills carrying this tag</span>
+                      </div>
+                      <span className="status-pill neutral">{tag.count}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">No skill tags recorded yet.</div>
+                )}
+              </div>
+            </section>
+
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Ownership</p>
+                  <h3>Top skill owners</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {topSkillOwners.length > 0 ? (
+                  topSkillOwners.map((item) => (
+                    <div className="admin-row" key={item.owner}>
+                      <div>
+                        <strong>{item.owner === "unassigned" ? "Unassigned" : item.owner}</strong>
+                        <span>Skills owned by this person</span>
+                      </div>
+                      <span className="status-pill neutral">{item.count}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">No ownership data recorded yet.</div>
+                )}
+              </div>
+            </section>
+
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Quality status</p>
+                  <h3>Readiness by state</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {Object.entries(skillInsights.qualitySummary).length > 0 ? (
+                  Object.entries(skillInsights.qualitySummary)
+                    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+                    .map(([status, count]) => (
+                      <div className="admin-row" key={status}>
+                        <div>
+                          <strong>{formatAction(status)}</strong>
+                          <span>Skills in this quality lane</span>
+                        </div>
+                        <span className="status-pill neutral">{count}</span>
+                      </div>
+                    ))
+                ) : (
+                  <div className="empty-state">No quality status data yet.</div>
+                )}
+              </div>
+            </section>
+
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Scorecard</p>
+                  <h3>Grade distribution</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {Object.entries(skillInsights.scoreGradeSummary).length > 0 ? (
+                  Object.entries(skillInsights.scoreGradeSummary)
+                    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+                    .map(([grade, count]) => (
+                      <div className="admin-row" key={grade}>
+                        <div>
+                          <strong>{`Grade ${grade}`}</strong>
+                          <span>Skills in this score band</span>
+                        </div>
+                        <span className="status-pill neutral">{count}</span>
+                      </div>
+                    ))
+                ) : (
+                  <div className="empty-state">No scorecard data yet.</div>
+                )}
+              </div>
+            </section>
+
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Stability</p>
+                  <h3>Stable set and watchlist</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {Object.entries(skillInsights.stabilitySummary).length > 0 ? (
+                  Object.entries(skillInsights.stabilitySummary)
+                    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+                    .map(([status, count]) => (
+                      <div className="admin-row" key={status}>
+                        <div>
+                          <strong>{formatAction(status)}</strong>
+                          <span>Skills in this stability lane</span>
+                        </div>
+                        <span className="status-pill neutral">{count}</span>
+                      </div>
+                    ))
+                ) : (
+                  <div className="empty-state">No stability data yet.</div>
+                )}
+              </div>
+              <div className="admin-table compact-list">
+                {topStableSkills.length > 0 ? (
+                  topStableSkills.map((skill) => (
+                    <div className="admin-row" key={skill.name}>
+                      <div>
+                        <strong>{skill.name}</strong>
+                        <span>
+                          {joinMeta([
+                            `Grade ${skill.scorecard.grade}`,
+                            `${skill.scorecard.score}/100`,
+                            skill.owner ? `Owner ${skill.owner}` : "Owner missing",
+                            `Freshness ${skill.freshnessStatus}`,
+                          ])}
+                        </span>
+                      </div>
+                      <a className="button secondary compact" href={`/skills/${encodeURIComponent(skill.name)}`}>
+                        Open
+                      </a>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">No stable skills identified yet.</div>
+                )}
+              </div>
+            </section>
+
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Needs attention</p>
+                  <h3>At-risk skills</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {atRiskSkills.length > 0 ? (
+                  atRiskSkills.map((skill) => (
+                    <div className="admin-row" key={skill.name}>
+                      <div>
+                        <strong>{skill.name}</strong>
+                        <span>
+                          {joinMeta([
+                            skill.owner ? `Owner ${skill.owner}` : "Owner missing",
+                            `Freshness ${skill.freshnessStatus}`,
+                            `Health ${skill.healthStatus}`,
+                            `Quality ${skill.qualityStatus}`,
+                            skill.scorecard ? `Grade ${skill.scorecard.grade}` : "",
+                            `${skill.validationSummary.failCount} fails`,
+                            `${skill.validationSummary.warnCount} warnings`,
+                          ])}
+                        </span>
+                      </div>
+                      <a className="button secondary compact" href={`/skills/${encodeURIComponent(skill.name)}`}>
+                        Open
+                      </a>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">No at-risk skills right now.</div>
+                )}
+              </div>
+            </section>
+
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Freshness</p>
+                  <h3>Stale skills</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {staleSkills.length > 0 ? (
+                  staleSkills.map((skill) => (
+                    <div className="admin-row" key={skill.name}>
+                      <div>
+                        <strong>{skill.name}</strong>
+                        <span>
+                          {joinMeta([
+                            skill.owner ? `Owner ${skill.owner}` : "Owner missing",
+                            skill.lastAuditedAt ? `Audited ${formatDate(new Date(skill.lastAuditedAt))}` : "Never audited",
+                            typeof skill.freshnessAgeDays === "number" ? `${skill.freshnessAgeDays} days old` : "",
+                          ])}
+                        </span>
+                      </div>
+                      <a className="button secondary compact" href={`/skills/${encodeURIComponent(skill.name)}`}>
+                        Open
+                      </a>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">No stale skills right now.</div>
+                )}
+              </div>
+            </section>
+
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">QA reporting</p>
+                  <h3>Recent validation reports</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {latestQaReports.length > 0 ? (
+                  latestQaReports.map((skill) => (
+                    <div className="admin-row" key={skill.name}>
+                      <div>
+                        <strong>{skill.name}</strong>
+                        <span>
+                          {joinMeta([
+                            skill.latestQaReport.recommendation,
+                            `${skill.latestQaReport.findingsCount} findings`,
+                            formatDate(new Date(skill.latestQaReport.createdAt)),
+                          ])}
+                        </span>
+                      </div>
+                      <a
+                        className="button secondary compact"
+                        href={`/api/skills/${encodeURIComponent(skill.name)}/qa-report`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View report
+                      </a>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">No QA reports generated yet.</div>
+                )}
+              </div>
+            </section>
+          </div>
+        </section>
+
         <section className="admin-card">
           <div className="panel-header">
             <div>
@@ -945,7 +1488,41 @@ export default async function AdminDashboardPage({ searchParams }) {
               <div className="admin-row" key={user.id}>
                 <div>
                   <strong>{user.name || user.email}</strong>
-                  <span>{user.email} · Updated {formatDate(user.updatedAt)}</span>
+                  <span>
+                    {joinMeta([
+                      user.email,
+                      user.externalUserId ? `External ${user.externalUserId}` : "No external id",
+                      user.preferredBranch ? `Branch ${user.preferredBranch}` : "No branch assigned",
+                      user.lastSeenAt ? `Seen ${formatDate(user.lastSeenAt)}` : "Never seen",
+                      `Updated ${formatDate(user.updatedAt)}`,
+                    ])}
+                  </span>
+                  <form action={setUserExternalIdentity} className="inline-form">
+                    <input type="hidden" name="userId" value={user.id} />
+                    <input
+                      className="search-field"
+                      type="text"
+                      name="externalUserId"
+                      defaultValue={user.externalUserId || ""}
+                      placeholder="user-1"
+                    />
+                    <button className="button secondary compact" type="submit">
+                      Save external ID
+                    </button>
+                  </form>
+                  <form action={setUserPreferredBranch} className="inline-form">
+                    <input type="hidden" name="userId" value={user.id} />
+                    <input
+                      className="search-field"
+                      type="text"
+                      name="preferredBranch"
+                      defaultValue={user.preferredBranch || ""}
+                      placeholder="users/sanay"
+                    />
+                    <button className="button secondary compact" type="submit">
+                      Save branch
+                    </button>
+                  </form>
                 </div>
                 <div className="admin-actions">
                   <span className={`status-pill ${user.role === "ADMIN" ? "success" : "neutral"}`}>{user.role}</span>
@@ -989,6 +1566,62 @@ export default async function AdminDashboardPage({ searchParams }) {
           </div>
         </section>
 
+        <section className="admin-card wide">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">User activity</p>
+              <h2>Who touched what</h2>
+            </div>
+            <span className="status-pill neutral">{userActivity.length} active users</span>
+          </div>
+          <div className="admin-table">
+            {userActivity.length > 0 ? (
+              userActivity.map((entry) => (
+                <div className="admin-row" key={entry.user.id}>
+                  <div>
+                    <strong>{entry.user.name || entry.user.email || entry.user.id}</strong>
+                    <span>
+                      {joinMeta([
+                        `${entry.totalActions} actions`,
+                        entry.lastActionAt ? `Last activity ${formatDate(entry.lastActionAt)}` : "",
+                      ])}
+                    </span>
+                    <span>
+                      {joinMeta([
+                        entry.touchedSkills.size
+                          ? `Skills: ${Array.from(entry.touchedSkills).slice(0, 3).join(", ")}${
+                              entry.touchedSkills.size > 3 ? ` +${entry.touchedSkills.size - 3}` : ""
+                            }`
+                          : "",
+                        entry.touchedWorkflows.size
+                          ? `Workflows: ${Array.from(entry.touchedWorkflows).slice(0, 2).join(", ")}${
+                              entry.touchedWorkflows.size > 2 ? ` +${entry.touchedWorkflows.size - 2}` : ""
+                            }`
+                          : "",
+                        entry.touchedWorkspaces.size
+                          ? `Workspaces: ${Array.from(entry.touchedWorkspaces).slice(0, 2).join(", ")}${
+                              entry.touchedWorkspaces.size > 2 ? ` +${entry.touchedWorkspaces.size - 2}` : ""
+                            }`
+                          : "",
+                      ])}
+                    </span>
+                  </div>
+                  <div className="admin-actions">
+                    <span className="status-pill neutral">
+                      {Array.from(entry.recentActions).slice(0, 2).map(formatAction).join(" / ")}
+                    </span>
+                    <a className="button secondary compact" href={`/admin?userId=${encodeURIComponent(entry.user.id)}`}>
+                      Filter logs
+                    </a>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="empty-state">No user activity history has been recorded yet.</div>
+            )}
+          </div>
+        </section>
+
         <section className="admin-card">
           <div className="panel-header">
             <div>
@@ -1002,7 +1635,10 @@ export default async function AdminDashboardPage({ searchParams }) {
                 <div>
                   <strong>{formatAction(log.action)}</strong>
                   <span>
-                    {(log.user?.name || log.user?.email || log.userId)} · {log.resource}:{log.resourceId}
+                    {joinMeta([
+                      log.user?.name || log.user?.email || log.userId,
+                      `${log.resource}:${log.resourceId}`,
+                    ])}
                   </span>
                 </div>
                 <span>{formatDate(log.createdAt)}</span>
@@ -1070,11 +1706,11 @@ export default async function AdminDashboardPage({ searchParams }) {
                   <strong>{notification.title}</strong>
                   <span>
                     Attempts: {notification.retryCount || 0}
-                    {notification.lastAttemptAt ? ` - Last attempt ${formatDate(notification.lastAttemptAt)}` : ""}
-                    {notification.emailError ? ` - Error: ${notification.emailError}` : ""}
+                    {notification.lastAttemptAt ? ` | Last attempt ${formatDate(notification.lastAttemptAt)}` : ""}
+                    {notification.emailError ? ` | Error: ${notification.emailError}` : ""}
                   </span>
                   <span>
-                    {notification.user?.email || notification.userId} · {notification.message}
+                    {joinMeta([notification.user?.email || notification.userId, notification.message])}
                   </span>
                 </div>
                 <div className="admin-actions">

@@ -1,7 +1,7 @@
 /**
  * Filesystem logic for discovering and reading skills from the configured
- * skills folder. This deliberately mirrors skills.ts in skills-mcp-server —
- * same discovery rules, same "what counts as a skill" definition — so the
+ * skills folder. This deliberately mirrors skills.ts in skills-mcp-server -
+ * same discovery rules, same "what counts as a skill" definition - so the
  * VS Code extension and the MCP server never disagree about what's available.
  */
 
@@ -10,15 +10,18 @@ import * as path from "node:path";
 
 const SKILL_FILE_NAME = "SKILL.md";
 const REFERENCES_DIR_NAME = "references";
+const STATE_FILE_NAME = "skill-state.json";
 
 export interface SkillInfo {
   name: string;
   description: string;
+  tags: string[];
+  qualityStatus: string;
+  healthStatus: "passed" | "warning" | "failed";
   skillMdPath: string;
   referenceFiles: { name: string; path: string }[];
 }
 
-/** Parses the `description:` field out of a SKILL.md file's YAML frontmatter. */
 function parseDescription(skillMdContent: string): string {
   const frontmatterMatch = skillMdContent.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!frontmatterMatch) {
@@ -59,13 +62,71 @@ async function listReferenceFiles(
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/**
- * Discovers every skill in skillsPath: a direct subdirectory counts as a
- * skill only if it contains a SKILL.md file. Anything else is silently
- * skipped (a folder with no SKILL.md yet, .git, stray files, etc.) rather
- * than causing an error — the skills folder is allowed to contain
- * in-progress or unrelated things without breaking discovery.
- */
+async function readSkillState(skillsPath: string, skillName: string): Promise<{
+  tags: string[];
+  qualityStatus: string;
+}> {
+  const statePath = path.join(skillsPath, skillName, STATE_FILE_NAME);
+  if (!(await isFile(statePath))) {
+    return { tags: [], qualityStatus: "draft" };
+  }
+
+  try {
+    const parsed = JSON.parse(await fs.readFile(statePath, "utf-8"));
+    return {
+      tags: Array.isArray(parsed?.tags)
+        ? parsed.tags.map((tag: unknown) => String(tag).trim().toLowerCase()).filter(Boolean)
+        : [],
+      qualityStatus:
+        typeof parsed?.qualityStatus === "string" && parsed.qualityStatus.trim()
+          ? parsed.qualityStatus.trim()
+          : "draft",
+    };
+  } catch {
+    return { tags: [], qualityStatus: "draft" };
+  }
+}
+
+function inferTags(
+  name: string,
+  description: string,
+  referenceFiles: { name: string; path: string }[],
+  stateTags: string[]
+): string[] {
+  const tags = new Set(stateTags);
+  const combined = `${name} ${description} ${referenceFiles.map((file) => file.name).join(" ")}`.toLowerCase();
+  const keywordMap: Record<string, string[]> = {
+    frontend: ["frontend", "react", "vue", "svelte", "angular", "next", "tailwind"],
+    backend: ["backend", "node", "python", "go", "java", "api", "database"],
+    testing: ["test", "quality", "qa", "validation"],
+    security: ["security", "auth", "authorization", "secret", "owasp", "vulnerability", "hardening"],
+    delivery: ["delivery", "ci", "cd", "pipeline", "deploy"],
+    architecture: ["architecture", "adr", "c4", "nfr"],
+    sre: ["sre", "incident", "observability", "slo"],
+  };
+
+  for (const [tag, keywords] of Object.entries(keywordMap)) {
+    if (keywords.some((keyword) => combined.includes(keyword))) {
+      tags.add(tag);
+    }
+  }
+
+  return Array.from(tags).sort();
+}
+
+function evaluateHealth(
+  description: string,
+  referenceFiles: { name: string; path: string }[]
+): "passed" | "warning" | "failed" {
+  if (!description || description.startsWith("(no description")) {
+    return "failed";
+  }
+  if (referenceFiles.length === 0) {
+    return "warning";
+  }
+  return "passed";
+}
+
 export async function discoverSkills(skillsPath: string): Promise<SkillInfo[]> {
   let entries: import("node:fs").Dirent[];
   try {
@@ -87,23 +148,23 @@ export async function discoverSkills(skillsPath: string): Promise<SkillInfo[]> {
       continue;
     }
     const content = await fs.readFile(skillMdPath, "utf-8");
+    const description = parseDescription(content);
+    const referenceFiles = await listReferenceFiles(skillsPath, dir.name);
+    const state = await readSkillState(skillsPath, dir.name);
     skills.push({
       name: dir.name,
-      description: parseDescription(content),
+      description,
+      tags: inferTags(dir.name, description, referenceFiles, state.tags),
+      qualityStatus: state.qualityStatus,
+      healthStatus: evaluateHealth(description, referenceFiles),
       skillMdPath,
-      referenceFiles: await listReferenceFiles(skillsPath, dir.name),
+      referenceFiles,
     });
   }
 
   return skills.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/**
- * Returns the full content of one skill: its SKILL.md plus every reference
- * file, concatenated with clear delimiters — identical in shape to
- * get_skill's output in skills-mcp-server, so a skill "means the same thing"
- * whether you're inserting it here or fetching it through the MCP server.
- */
 export async function getFullSkillContent(skill: SkillInfo): Promise<string> {
   const sections: string[] = [];
 

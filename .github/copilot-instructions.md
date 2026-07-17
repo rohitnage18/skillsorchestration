@@ -27,6 +27,20 @@ in Agent mode. It exposes two tools:
   knowledge of that domain — the skill content reflects specific, current (2026)
   practices and known issues that may not be in your training data.
 
+After any meaningful code change, also call `get_skill` for `quality-engineering` and
+use it as a default post-change validation pass. Treat it as the repository's senior
+test-developer workflow: re-check the changed surface, run relevant tests/builds, think
+through edge cases and regressions, and report what was verified and what risk remains.
+
+## Git and branch workflow
+
+Never push directly to `main`.
+
+Before creating a branch for someone, ask them first and confirm the branch name. Prefer
+one personal working branch per user, ideally named `users/<username>`. Push work to that
+user's branch, then move code to `main` only through a manual pull request after required
+checks pass.
+
 ## Working across frontend and backend on this project
 
 If you're working on one side of a frontend/backend split that another person owns the
