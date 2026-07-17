@@ -37,6 +37,9 @@ FROM_EMAIL=noreply@example.com
 # Optional token for VS Code/external skill event reports
 SKILL_EVENTS_TOKEN=change-me
 
+# Strongly recommended for signed external events
+SKILL_EVENTS_HMAC_SECRET=change-me-again
+
 # Optional. When true, conductor UI skill previews are logged as skill:preview
 ENABLE_SKILL_PREVIEW_TRACKING=false
 ```
@@ -62,6 +65,17 @@ UPDATE "User" SET role = 'ADMIN' WHERE email = 'admin@example.com';
 For the current local UI, sign in through `/login`.
 Browser API routes resolve the user from the Auth.js session.
 MCP and VS Code event reporting still send user identity headers, but those calls must also include `SKILL_EVENTS_TOKEN`.
+If `SKILL_EVENTS_HMAC_SECRET` is configured, those event clients must also send:
+
+- `x-skill-event-id`
+- `x-skill-event-timestamp`
+- `x-skill-event-signature`
+
+The signature should be an HMAC-SHA256 over:
+
+```text
+<timestamp>.<eventId>.<rawBody>
+```
 
 ## Run Locally
 
@@ -106,6 +120,13 @@ When configured, the extension reports:
 - `skill:preview` when a user previews a skill or reference.
 - `skill:use` when a user inserts a skill into code.
 - `skill:file:update` when `SKILL.md` or `references/*.md` changes.
+
+Security hardening now also includes:
+
+- rate limiting on sensitive mutation endpoints
+- signed external event verification when `SKILL_EVENTS_HMAC_SECRET` is configured
+- replay protection for repeated external event IDs
+- audit-log integrity hashes chained across entries
 
 ## Agent Workflow
 

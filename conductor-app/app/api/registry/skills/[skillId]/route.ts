@@ -6,7 +6,8 @@ import {
   getRegistrySkill,
   updateRegistrySkill,
 } from "../../../../../features/skills/service";
-import { getErrorStatus, requireAdmin } from "../../../../../lib/auth.js";
+import { getErrorStatus, requirePermission } from "../../../../../lib/auth.js";
+import { buildRateLimitKey, enforceRateLimit } from "../../../../../lib/requestSecurity.js";
 
 type RouteContext = {
   params: Promise<{ skillId: string }>;
@@ -24,7 +25,13 @@ export async function GET(req: Request, context: RouteContext) {
 export async function PATCH(req: Request, context: RouteContext) {
   try {
     const { skillId } = await context.params;
-    const user = await requireAdmin(req.headers);
+    const user = await requirePermission(req.headers, "registry_skills:manage");
+    enforceRateLimit({
+      bucket: "registry-skill-update",
+      key: buildRateLimitKey(req.headers, "registry-skill-update", user.id),
+      limit: 30,
+      windowMs: 60_000,
+    });
     const input = updateSkillSchema.parse(await req.json());
     return jsonResponse(await updateRegistrySkill(user.id, skillId, input));
   } catch (error) {
@@ -35,7 +42,13 @@ export async function PATCH(req: Request, context: RouteContext) {
 export async function DELETE(req: Request, context: RouteContext) {
   try {
     const { skillId } = await context.params;
-    const user = await requireAdmin(req.headers);
+    const user = await requirePermission(req.headers, "registry_skills:manage");
+    enforceRateLimit({
+      bucket: "registry-skill-delete",
+      key: buildRateLimitKey(req.headers, "registry-skill-delete", user.id),
+      limit: 10,
+      windowMs: 60_000,
+    });
     return jsonResponse(await deleteRegistrySkill(user.id, skillId));
   } catch (error) {
     return errorResponse(error, "Unable to delete registry skill.", getErrorStatus(error, 400));

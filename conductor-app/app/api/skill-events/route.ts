@@ -7,8 +7,9 @@ import {
   normalizeSkillNameInput,
   sanitizeText,
 } from "../../../lib/inputSafety.js";
-import { verifyBearerToken } from "../../../lib/productionSecurity.js";
+import { verifyBearerToken, verifySkillEventSignature } from "../../../lib/productionSecurity.js";
 import { resolveExternalEventUser } from "../../../lib/userIdentity.js";
+import { assertReplayWindow, buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
 
 const NOISY_ACTIONS = new Set(["skill:list", "skill:read", "skill:preview", "skill:use"]);
 const DEDUPE_WINDOW_MS = 30_000;
@@ -51,12 +52,44 @@ export async function POST(req: Request) {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
+    enforceRateLimit({
+      bucket: "skill-events",
+      key: buildRateLimitKey(req.headers, "skill-events"),
+      limit: 60,
+      windowMs: 60_000,
+    });
+
+    const rawBody = await req.text();
+    const hmacSecret = process.env.SKILL_EVENTS_HMAC_SECRET;
+    if (hmacSecret) {
+      const signatureResult = verifySkillEventSignature({
+        timestamp: req.headers.get("x-skill-event-timestamp") ?? "",
+        eventId: req.headers.get("x-skill-event-id") ?? "",
+        signature: req.headers.get("x-skill-event-signature") ?? "",
+        body: rawBody,
+        secret: hmacSecret,
+      });
+
+      if (!signatureResult.ok) {
+        return jsonResponse(
+          { error: `Invalid signed event request: ${signatureResult.reason}.` },
+          401
+        );
+      }
+
+      assertReplayWindow({
+        bucket: "skill-events",
+        key: req.headers.get("x-skill-event-id") ?? "",
+        ttlMs: 5 * 60 * 1000,
+      });
+    }
+
     const eventHeaders = eventHeadersSchema.parse({
       userId: req.headers.get("x-user-id"),
       userEmail: req.headers.get("x-user-email"),
       userName: req.headers.get("x-user-name") || undefined,
     });
-    const rawInput = await req.json();
+    const rawInput = JSON.parse(rawBody);
     assertJsonByteSize(rawInput, undefined, "Skill event payload");
     const input = skillEventSchema.parse(rawInput);
     const resourceId = input.resourceId ?? input.skillName;

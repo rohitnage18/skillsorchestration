@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getErrorStatus, requireAdmin } from "../../../lib/auth.js";
+import { getErrorStatus, requirePermission } from "../../../lib/auth.js";
 import { db } from "../../../lib/db";
+import { buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
 
 const upsertUserSchema = z.object({
   id: z.string().trim().min(1),
@@ -23,7 +24,7 @@ const upsertUserSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin(request.headers);
+    await requirePermission(request.headers, "users:manage");
 
     const users = await db.user.findMany({
       orderBy: [{ role: "asc" }, { email: "asc" }],
@@ -53,7 +54,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin(request.headers);
+    await requirePermission(request.headers, "users:manage");
+    enforceRateLimit({
+      bucket: "users-upsert",
+      key: buildRateLimitKey(request.headers, "users-upsert"),
+      limit: 20,
+      windowMs: 60_000,
+    });
 
     const input = upsertUserSchema.parse(await request.json());
     const user = await db.user.upsert({

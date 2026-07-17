@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getErrorStatus, requireAdmin } from "../../../../../lib/auth.js";
+import { getErrorStatus, requirePermission } from "../../../../../lib/auth.js";
 import { rejectSkillChangeRequest } from "../../../../../lib/skillChangeRequests.js";
+import { buildRateLimitKey, enforceRateLimit } from "../../../../../lib/requestSecurity.js";
 
 type RouteContext = {
   params: Promise<{ requestId: string }>;
@@ -8,7 +9,13 @@ type RouteContext = {
 
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    const user = await requireAdmin(request.headers);
+    const user = await requirePermission(request.headers, "skill_change_requests:review");
+    enforceRateLimit({
+      bucket: "skill-change-review",
+      key: buildRateLimitKey(request.headers, "skill-change-review", user.id),
+      limit: 20,
+      windowMs: 60_000,
+    });
     const { requestId } = await context.params;
     const body = await request.json().catch(() => ({}));
     const skillChangeRequest = await rejectSkillChangeRequest(requestId, user.id, body);

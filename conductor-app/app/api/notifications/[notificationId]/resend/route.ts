@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
-import { getErrorStatus, requireAdmin } from "../../../../../lib/auth.js";
+import { getErrorStatus, requirePermission } from "../../../../../lib/auth.js";
 import { resendNotificationEmail } from "../../../../../features/logging/server-functions";
+import { buildRateLimitKey, enforceRateLimit } from "../../../../../lib/requestSecurity.js";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ notificationId: string }> }
 ) {
   try {
-    await requireAdmin();
+    await requirePermission(request.headers, "notifications:resend");
+    enforceRateLimit({
+      bucket: "notifications-resend",
+      key: buildRateLimitKey(request.headers, "notifications-resend"),
+      limit: 10,
+      windowMs: 60_000,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Admin permission is required." },
