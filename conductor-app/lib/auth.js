@@ -1,6 +1,28 @@
 import { db } from "./db";
 import { auth } from "../auth.js";
 
+const rolePermissions = {
+  ADMIN: [
+    "audit_logs:read",
+    "audit_logs:write",
+    "audit_logs:purge",
+    "imports:manage",
+    "notifications:manage",
+    "notifications:resend",
+    "registry_skills:manage",
+    "skill_change_requests:review",
+    "skills:manage",
+    "users:manage",
+    "workflows:manage",
+  ],
+  USER: [
+    "notifications:read",
+    "skill_change_requests:create",
+    "skills:use",
+    "workflows:use",
+  ],
+};
+
 export async function getRequestUserId(headers) {
   const session = await auth();
   if (session?.user?.id) {
@@ -59,11 +81,25 @@ export async function requireAdmin(headers) {
   return requireRole(headers, "ADMIN");
 }
 
+export async function requirePermission(headers, permission) {
+  const user = await requireUser(headers);
+  const grantedPermissions = rolePermissions[user.role] || [];
+
+  if (!grantedPermissions.includes(permission)) {
+    await logAuthorizationFailure(user, [permission], "permission");
+    const error = new Error(`${permission} permission is required.`);
+    error.status = 403;
+    throw error;
+  }
+
+  return user;
+}
+
 export function getErrorStatus(error, fallback = 500) {
   return typeof error?.status === "number" ? error.status : fallback;
 }
 
-async function logAuthorizationFailure(user, allowedRoles) {
+async function logAuthorizationFailure(user, allowed, mode = "role") {
   try {
     await db.auditLog.create({
       data: {
@@ -73,11 +109,12 @@ async function logAuthorizationFailure(user, allowedRoles) {
         resourceId: user.id,
         changes: {
           before: { role: user.role, status: user.status },
-          after: { requiredRoles: allowedRoles },
+          after: mode === "permission" ? { requiredPermissions: allowed } : { requiredRoles: allowed },
         },
         metadata: {
           email: user.email,
           name: user.name,
+          deniedMode: mode,
           attemptedAt: new Date().toISOString(),
         },
       },

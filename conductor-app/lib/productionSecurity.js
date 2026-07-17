@@ -53,6 +53,60 @@ export function verifyBearerToken(authHeader, expectedToken) {
   return crypto.timingSafeEqual(tokenBuffer, expectedBuffer);
 }
 
+export function createSkillEventSignature({ timestamp, eventId, body, secret }) {
+  return crypto
+    .createHmac("sha256", secret)
+    .update(`${timestamp}.${eventId}.${body}`)
+    .digest("hex");
+}
+
+export function verifySkillEventSignature({
+  timestamp,
+  eventId,
+  signature,
+  body,
+  secret,
+  now = Date.now(),
+  toleranceMs = 5 * 60 * 1000,
+}) {
+  if (!secret) {
+    return { ok: false, reason: "missing-secret" };
+  }
+
+  if (!timestamp || !eventId || !signature) {
+    return { ok: false, reason: "missing-headers" };
+  }
+
+  const timestampMs = Number(timestamp);
+  if (!Number.isFinite(timestampMs)) {
+    return { ok: false, reason: "invalid-timestamp" };
+  }
+
+  if (Math.abs(now - timestampMs) > toleranceMs) {
+    return { ok: false, reason: "stale-timestamp" };
+  }
+
+  const expectedSignature = createSkillEventSignature({
+    timestamp,
+    eventId,
+    body,
+    secret,
+  });
+
+  const providedBuffer = Buffer.from(String(signature));
+  const expectedBuffer = Buffer.from(expectedSignature);
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return { ok: false, reason: "signature-mismatch" };
+  }
+
+  const ok = crypto.timingSafeEqual(providedBuffer, expectedBuffer);
+  return {
+    ok,
+    reason: ok ? "ok" : "signature-mismatch",
+    timestampMs,
+  };
+}
+
 function assertStrongSecret(name, minLength) {
   const value = process.env[name];
   if (!value || value.length < minLength || placeholderPattern.test(value)) {

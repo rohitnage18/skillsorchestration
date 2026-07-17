@@ -5,7 +5,8 @@ import {
   logAction,
   purgeOldAuditLogs,
 } from "../../../features/logging/server-functions";
-import { getErrorStatus, requireAdmin } from "../../../lib/auth.js";
+import { getErrorStatus, requirePermission } from "../../../lib/auth.js";
+import { buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
 
 /**
  * GET /api/audit-logs
@@ -15,7 +16,7 @@ import { getErrorStatus, requireAdmin } from "../../../lib/auth.js";
  */
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin(request.headers);
+    await requirePermission(request.headers, "audit_logs:read");
     const searchParams = request.nextUrl.searchParams;
     const userId = searchParams.get("userId") || undefined;
     const resource = searchParams.get("resource") || undefined;
@@ -51,7 +52,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin(request.headers);
+    await requirePermission(request.headers, "audit_logs:write");
+    enforceRateLimit({
+      bucket: "audit-log-write",
+      key: buildRateLimitKey(request.headers, "audit-log-write"),
+      limit: 30,
+      windowMs: 60_000,
+    });
     const body = await request.json();
     const result = await logAction(body);
 
@@ -77,7 +84,13 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    await requireAdmin(request.headers);
+    await requirePermission(request.headers, "audit_logs:purge");
+    enforceRateLimit({
+      bucket: "audit-log-purge",
+      key: buildRateLimitKey(request.headers, "audit-log-purge"),
+      limit: 5,
+      windowMs: 60_000,
+    });
     const searchParams = request.nextUrl.searchParams;
     const olderThanDays = parseInt(searchParams.get("olderThanDays") || "90");
 

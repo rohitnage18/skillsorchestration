@@ -1,6 +1,7 @@
 import { createSkill, getSkillInsights, listSkills } from "../../../lib/skillStorage.js";
-import { getErrorStatus, requireAdmin } from "../../../lib/auth.js";
+import { getErrorStatus, requirePermission } from "../../../lib/auth.js";
 import { sanitizeDescription, sanitizeText, normalizeSkillNameInput } from "../../../lib/inputSafety.js";
+import { buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -22,7 +23,13 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    const user = await requireAdmin(req.headers);
+    const user = await requirePermission(req.headers, "skills:manage");
+    enforceRateLimit({
+      bucket: "skills-create",
+      key: buildRateLimitKey(req.headers, "skills-create", user.id),
+      limit: 15,
+      windowMs: 60_000,
+    });
     const body = await req.json();
     const skillName = normalizeSkillNameInput(body.skillName);
     const description = sanitizeDescription(body.description);

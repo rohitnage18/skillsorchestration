@@ -1,5 +1,6 @@
 import { PrismaClient } from "../../lib/generated/prisma/client";
 import { notificationService } from "./notification.service";
+import crypto from "crypto";
 
 export interface AuditLogEntry {
   userId: string;
@@ -19,6 +20,37 @@ export class AuditLogService {
    */
   async log(entry: AuditLogEntry): Promise<void> {
     try {
+      const previousLog = await this.prisma.auditLog.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          metadata: true,
+        },
+      });
+
+      const previousHash =
+        previousLog?.metadata &&
+        typeof previousLog.metadata === "object" &&
+        !Array.isArray(previousLog.metadata) &&
+        typeof (previousLog.metadata as Record<string, unknown>).integrity === "object" &&
+        (previousLog.metadata as Record<string, any>).integrity?.entryHash
+          ? String((previousLog.metadata as Record<string, any>).integrity.entryHash)
+          : null;
+
+      const integrityPayload = {
+        userId: entry.userId,
+        action: entry.action,
+        resource: entry.resource,
+        resourceId: entry.resourceId,
+        changes: entry.changes ?? null,
+        metadata: entry.metadata ?? null,
+        previousHash,
+      };
+      const entryHash = crypto
+        .createHash("sha256")
+        .update(JSON.stringify(integrityPayload))
+        .digest("hex");
+
       const auditLog = await this.prisma.auditLog.create({
         data: {
           userId: entry.userId,
@@ -26,7 +58,14 @@ export class AuditLogService {
           resource: entry.resource,
           resourceId: entry.resourceId,
           changes: entry.changes,
-          metadata: entry.metadata,
+          metadata: {
+            ...(entry.metadata || {}),
+            integrity: {
+              chainVersion: 1,
+              previousHash,
+              entryHash,
+            },
+          },
         },
       });
 

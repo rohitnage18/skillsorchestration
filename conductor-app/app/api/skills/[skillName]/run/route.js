@@ -1,6 +1,7 @@
 import { logSkillActivity, saveSkillQaReport, validateSkill } from "../../../../../lib/skillStorage.js";
-import { getErrorStatus, requireUser } from "../../../../../lib/auth.js";
+import { getErrorStatus, requirePermission } from "../../../../../lib/auth.js";
 import { normalizeSkillNameInput } from "../../../../../lib/inputSafety.js";
+import { buildRateLimitKey, enforceRateLimit } from "../../../../../lib/requestSecurity.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -15,7 +16,13 @@ export async function POST(req, { params }) {
   try {
     const { skillName } = await params;
     safeSkillName = normalizeSkillNameInput(skillName);
-    user = await requireUser(req.headers);
+    user = await requirePermission(req.headers, "skills:use");
+    enforceRateLimit({
+      bucket: "skill-validation-run",
+      key: buildRateLimitKey(req.headers, "skill-validation-run", user.id),
+      limit: 25,
+      windowMs: 60_000,
+    });
     const validation = validateSkill(safeSkillName);
     const qaReport = saveSkillQaReport(safeSkillName, validation);
     const result = {

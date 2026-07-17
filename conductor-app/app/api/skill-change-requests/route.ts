@@ -4,6 +4,7 @@ import {
   createSkillChangeRequest,
   listSkillChangeRequests,
 } from "../../../lib/skillChangeRequests.js";
+import { buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,6 +22,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser(request.headers);
+    enforceRateLimit({
+      bucket: "skill-change-request-create",
+      key: buildRateLimitKey(request.headers, "skill-change-request-create", user.id),
+      limit: 20,
+      windowMs: 60_000,
+    });
     const skillChangeRequest = await createSkillChangeRequest(user.id, await request.json());
     return NextResponse.json({ success: true, data: skillChangeRequest }, { status: 201 });
   } catch (error) {

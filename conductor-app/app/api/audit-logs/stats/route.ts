@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuditStats } from "../../../../features/logging/server-functions";
-import { getErrorStatus, requireAdmin } from "../../../../lib/auth.js";
+import { getErrorStatus, requirePermission } from "../../../../lib/auth.js";
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin(request.headers);
+    await requirePermission(request.headers, "audit_logs:read");
 
     const timeframeParam = request.nextUrl.searchParams.get("timeframe") ?? "week";
     const timeframe = ["day", "week", "month"].includes(timeframeParam)

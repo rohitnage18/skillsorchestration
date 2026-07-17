@@ -6,7 +6,8 @@ import {
   clearOldNotifications,
 } from "../../../features/logging/server-functions";
 import { db } from "../../../lib/db";
-import { getErrorStatus, requireAdmin, requireUser } from "../../../lib/auth.js";
+import { getErrorStatus, requirePermission, requireUser } from "../../../lib/auth.js";
+import { buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
 
 /**
  * GET /api/notifications
@@ -52,7 +53,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireUser(request.headers);
+    const user = await requirePermission(request.headers, "notifications:read");
+    enforceRateLimit({
+      bucket: "notifications-mark-read",
+      key: buildRateLimitKey(request.headers, "notifications-mark-read", user.id),
+      limit: 40,
+      windowMs: 60_000,
+    });
 
     const body = await request.json();
     const { notificationId, markAll } = body;
@@ -110,7 +117,13 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    await requireAdmin(request.headers);
+    await requirePermission(request.headers, "notifications:manage");
+    enforceRateLimit({
+      bucket: "notifications-clear",
+      key: buildRateLimitKey(request.headers, "notifications-clear"),
+      limit: 5,
+      windowMs: 60_000,
+    });
     const searchParams = request.nextUrl.searchParams;
     const olderThanDays = parseInt(searchParams.get("olderThanDays") || "90");
 
