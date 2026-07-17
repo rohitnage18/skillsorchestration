@@ -6,12 +6,14 @@ This repository now uses GitHub Actions to validate branch work and pull request
 
 - `.github/workflows/branch-ci.yml`
   Runs on every push to any branch except `main`.
+- `.github/workflows/repo-verification.yml`
+  Runs the full repository verification stack on branch pushes and pull requests.
 - `.github/workflows/pr-main.yml`
   Runs on every pull request targeting `main`.
 - `.github/workflows/direct-main-guard.yml`
   Fails if someone pushes directly to `main`.
 - `.github/workflows/branch-policy.yml`
-  Verifies that working branches are personal branches and that PR validation happens on the path into `main`.
+  Verifies that working branches are personal branches and that pull requests are used only for manual merge into `main`.
 
 The CI checks currently cover:
 
@@ -21,6 +23,8 @@ The CI checks currently cover:
    Runs `npm ci` and `npm run build`
 3. `skills-vscode-extension`
    Runs `npm ci`, `npm run compile-check`, and `npm run build`
+4. Full repository verification
+   Runs `npm run verify:repo`
 
 ## QA skill after code changes
 
@@ -59,6 +63,7 @@ In GitHub:
    - `Conductor app checks`
    - `MCP server build`
    - `VS Code extension build`
+   - `Full repository verification`
 
 ## Personal branch policy
 
@@ -67,8 +72,11 @@ The intended delivery model is:
 1. Ask the user before creating a new Git branch for them
 2. Give each user one personal working branch
 3. Keep that user's commits and pushes on their own branch
-4. Open a manual pull request from that branch into `main`
-5. Merge only after required checks pass and a human approves the PR
+4. Push that branch and let GitHub verify and test it automatically
+5. Open a manual pull request from that branch into `main`
+6. Merge only after required checks pass and a human approves the PR
+
+PRs into other personal branches are not part of the intended workflow and should be avoided.
 
 Recommended branch names:
 
@@ -77,7 +85,7 @@ Recommended branch names:
 
 What CI can and cannot enforce:
 
-- CI can validate branch pushes, PRs into `main`, and reject direct pushes to `main`
+- CI can validate branch pushes, enforce that PRs target `main`, and reject direct pushes to `main`
 - GitHub branch protection can require PRs and required checks before merge
 - Agent prompting before creating a branch is a workflow rule and is documented in repo instructions for Codex/Copilot/Claude
 - Automatically pushing "whatever a user works on" to GitHub still depends on the local operator or agent session performing the git push on that user's branch
@@ -88,10 +96,10 @@ What CI can and cannot enforce:
 2. Create or switch to that user's personal branch such as `users/sanay` or legacy `sanay`
 3. Commit changes on that branch
 4. Push that branch to GitHub
-5. Let `Branch CI` and `Branch Policy` run automatically
+5. Let `Branch CI`, `Branch Policy`, and `Repository Verification` run automatically
 6. Open a manual pull request into `main`
-7. Let `PR To Main` pass
-8. Merge only through the pull request
+7. Let `PR To Main`, `Branch Policy`, and `Repository Verification` pass on the PR
+8. Merge only through the manual pull request
 
 ## Result
 
