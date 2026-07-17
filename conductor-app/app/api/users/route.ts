@@ -7,8 +7,18 @@ const upsertUserSchema = z.object({
   id: z.string().trim().min(1),
   email: z.string().trim().email(),
   name: z.string().trim().min(1).optional(),
+  externalUserId: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9._-]+$/, "External user id may contain only letters, numbers, dots, underscores, and hyphens.")
+    .optional(),
+  preferredBranch: z
+    .string()
+    .trim()
+    .regex(/^(users\/[A-Za-z0-9._-]+|[A-Za-z0-9._-]+)$/, "Preferred branch must be a personal branch such as users/sanay or sanay.")
+    .optional(),
   role: z.enum(["ADMIN", "USER"]).default("USER"),
-  status: z.enum(["PENDING", "ACTIVE", "DISABLED"]).default("ACTIVE"),
+  status: z.enum(["INVITED", "PENDING", "ACTIVE", "DISABLED"]).default("INVITED"),
 });
 
 export async function GET(request: NextRequest) {
@@ -21,6 +31,9 @@ export async function GET(request: NextRequest) {
         id: true,
         email: true,
         name: true,
+        externalUserId: true,
+        preferredBranch: true,
+        lastSeenAt: true,
         role: true,
         status: true,
         createdAt: true,
@@ -48,6 +61,8 @@ export async function POST(request: NextRequest) {
       update: {
         email: input.email,
         name: input.name ?? null,
+        externalUserId: input.externalUserId ?? null,
+        preferredBranch: input.preferredBranch ?? null,
         role: input.role,
         status: input.status,
       },
@@ -55,6 +70,8 @@ export async function POST(request: NextRequest) {
         id: input.id,
         email: input.email,
         name: input.name ?? null,
+        externalUserId: input.externalUserId ?? null,
+        preferredBranch: input.preferredBranch ?? null,
         role: input.role,
         status: input.status,
       },
@@ -62,6 +79,9 @@ export async function POST(request: NextRequest) {
         id: true,
         email: true,
         name: true,
+        externalUserId: true,
+        preferredBranch: true,
+        lastSeenAt: true,
         role: true,
         status: true,
         createdAt: true,

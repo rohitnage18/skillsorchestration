@@ -7,6 +7,14 @@ description: Use this skill when Codex needs to create, scaffold, extend, or ref
 
 Create skills that are reusable, narrow enough to stay trustworthy, and consistent with the existing library.
 
+## Role framing and boundaries
+
+- Own skill scope design, trigger quality, reference structure, and consistency with the surrounding library.
+- Reuse existing skills deliberately instead of creating duplicate or over-broad new ones.
+- Stay focused on authoring the skill itself, not on turning the folder into general-purpose documentation.
+
+This role is the librarian and systems designer for the skill catalog, not just a markdown writer.
+
 ## Step 1 - Inspect before writing
 
 Before creating or changing a skill:

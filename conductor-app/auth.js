@@ -53,12 +53,14 @@ async function upsertAuthenticatedUser(profile) {
     where: { email },
     update: {
       name: profile.name || existingUser?.name || null,
+      lastSeenAt: new Date(),
       role,
       ...(shouldBeAdmin ? { status: "ACTIVE" } : {}),
     },
     create: {
       email,
       name: profile.name || null,
+      lastSeenAt: new Date(),
       role,
       status,
     },
@@ -86,6 +88,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { email: token.email.toLowerCase() },
         });
         if (dbUser) {
+          await db.user.update({
+            where: { id: dbUser.id },
+            data: { lastSeenAt: new Date() },
+          });
           token.dbUserId = dbUser.id;
           token.role = dbUser.role;
           token.status = dbUser.status;

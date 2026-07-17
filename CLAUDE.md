@@ -25,6 +25,21 @@ when you already have direct file access. **Read the relevant skill's `SKILL.md`
 working on a task in its domain** — these contain specific, current (2026) practices and
 known issues that may go beyond general training knowledge.
 
+After any meaningful code creation, update, refactor, or bug fix, run the
+`skills/quality-engineering/SKILL.md` workflow before handing work back. Treat it as the
+default senior-tester pass for changed code: verify impacted behavior, run the relevant
+automated checks, cover important edge cases and regressions, and summarize findings plus
+residual risk.
+
+## Git and branch workflow
+
+Do not push directly to `main`.
+
+Before creating a branch, explicitly confirm the branch creation with the user. Prefer
+one personal working branch per user, ideally named `users/<username>`. Keep each user's
+commits on that user's own branch, push there first, and move code to `main` only through
+a manual pull request after required checks pass.
+
 ## Working across frontend and backend on this project
 
 If two people are splitting frontend and backend work on this project, the **API

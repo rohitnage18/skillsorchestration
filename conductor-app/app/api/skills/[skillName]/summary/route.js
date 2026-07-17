@@ -1,4 +1,4 @@
-import { listSkillFiles, loadSkill, loadSkillState } from "../../../../../lib/skillStorage.js";
+import { getSkillRecord, listSkillFiles, loadLatestSkillQaReport, loadSkill, loadSkillState, parseSkillFrontmatter, validateSkill } from "../../../../../lib/skillStorage.js";
 import { normalizeSkillNameInput } from "../../../../../lib/inputSafety.js";
 
 function json(data, status = 200) {
@@ -15,21 +15,46 @@ export async function GET(req, { params }) {
     const files = listSkillFiles(safeSkillName);
     const skill = loadSkill(safeSkillName);
     const state = loadSkillState(safeSkillName);
+    const record = getSkillRecord(safeSkillName);
+    const frontmatter = parseSkillFrontmatter(skill.skill);
+    const validation = validateSkill(safeSkillName);
+    const latestQaReport = loadLatestSkillQaReport(safeSkillName);
     const fileCount = files.length;
     const referenceCount = files.filter((file) => file.type === "reference").length;
     const hasSkillFile = files.some((file) => file.path === "SKILL.md");
-    const lastUpdated = new Date().toISOString();
-
     return json({
       fileCount,
       referenceCount,
       hasSkillFile,
       importedTo: state.importedTo,
       importedAt: state.importedAt,
-      lastUpdated,
+      tags: record.tags,
+      owner: state.owner,
+      reviewer: state.reviewer,
+      qualityStatus: state.qualityStatus,
+      freshnessStatus: record.freshnessStatus,
+      freshnessAgeDays: record.freshnessAgeDays,
+      scorecard: record.scorecard,
+      lastAuditedAt: state.lastAuditedAt,
+      latestQaReport: latestQaReport
+        ? {
+            id: latestQaReport.id,
+            createdAt: latestQaReport.createdAt,
+            recommendation: latestQaReport.recommendation,
+            findingsCount: latestQaReport.findingsCount,
+            relativePath: latestQaReport.relativePath,
+          }
+        : null,
+      lastUpdated: record.lastUpdatedAt,
+      triggerSummary: validation.triggerValidation,
+      validationSummary: {
+        status: validation.status,
+        failCount: validation.failCount,
+        warnCount: validation.warnCount,
+      },
       skillInfo: {
         name: safeSkillName,
-        description: skill.skill.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1]?.match(/^description:\s*(.+)$/m)?.[1]?.trim() || "No description",
+        description: frontmatter.description || "No description",
       },
     });
   } catch (error) {

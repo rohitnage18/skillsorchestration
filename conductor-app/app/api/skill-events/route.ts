@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { errorResponse, jsonResponse } from "../../../lib/http";
-import { db } from "../../../lib/db";
 import { logAction } from "../../../features/logging/server-functions";
 import {
   assertJsonByteSize,
@@ -9,6 +8,7 @@ import {
   sanitizeText,
 } from "../../../lib/inputSafety.js";
 import { verifyBearerToken } from "../../../lib/productionSecurity.js";
+import { resolveExternalEventUser } from "../../../lib/userIdentity.js";
 
 const NOISY_ACTIONS = new Set(["skill:list", "skill:read", "skill:preview", "skill:use"]);
 const DEDUPE_WINDOW_MS = 30_000;
@@ -72,36 +72,14 @@ export async function POST(req: Request) {
       pruneRecentEvents(now);
     }
 
-    const existingUser = await db.user.findUnique({
-      where: { id: eventHeaders.userId },
-    });
-
-    if (!existingUser) {
-      return jsonResponse({ error: "User must be created and approved by an admin before reporting events." }, 403);
-    }
-
-    if (existingUser.status !== "ACTIVE") {
-      return jsonResponse(
-        {
-          error:
-            existingUser.status === "PENDING"
-              ? "User is pending admin approval."
-              : "User is disabled.",
-        },
-        403
-      );
-    }
-
-    await db.user.update({
-      where: { id: existingUser.id },
-      data: {
-        email: eventHeaders.userEmail,
-        ...(eventHeaders.userName ? { name: eventHeaders.userName } : {}),
-      },
+    const resolvedUser = await resolveExternalEventUser({
+      externalUserId: eventHeaders.userId,
+      email: eventHeaders.userEmail,
+      name: eventHeaders.userName,
     });
 
     await logAction({
-      userId: eventHeaders.userId,
+      userId: resolvedUser.id,
       action: input.action,
       resource: "skill",
       resourceId,
@@ -115,7 +93,11 @@ export async function POST(req: Request) {
 
     return jsonResponse({ success: true }, 202);
   } catch (error) {
-    return errorResponse(error, "Unable to record skill event.", 400);
+    const status =
+      typeof error === "object" && error && "status" in error && typeof error.status === "number"
+        ? error.status
+        : 400;
+    return errorResponse(error, "Unable to record skill event.", status);
   }
 }
 

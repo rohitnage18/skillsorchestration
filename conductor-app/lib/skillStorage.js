@@ -9,11 +9,24 @@ import {
   sanitizeText,
 } from "./inputSafety.js";
 
-const SKILLS_ROOT = path.join(process.cwd(), "..", "skills");
-const IMPORT_ROOT = path.join(process.cwd(), "imported-workspaces");
-const VERSION_HISTORY_ROOT = path.join(process.cwd(), "data", "skill-versions");
+const SKILLS_ROOT = path.join(/* turbopackIgnore: true */ process.cwd(), "..", "skills");
+const IMPORT_ROOT = path.join(/* turbopackIgnore: true */ process.cwd(), "imported-workspaces");
+const VERSION_HISTORY_ROOT = path.join(/* turbopackIgnore: true */ process.cwd(), "data", "skill-versions");
+const QA_REPORTS_ROOT = path.join(/* turbopackIgnore: true */ process.cwd(), "data", "skill-qa-reports");
 const STATE_FILENAME = "skill-state.json";
 const MAX_VERSION_HISTORY = 50;
+const STALE_SKILL_DAYS = 90;
+const REVIEW_SOON_DAYS = 30;
+const DEFAULT_SKILL_STATE = {
+  importedTo: null,
+  importedAt: null,
+  tags: [],
+  owner: "",
+  reviewer: "",
+  qualityStatus: "draft",
+  lastAuditedAt: null,
+  latestQaReport: null,
+};
 const skillStorageTestHooks = {
   db: null,
   logAction: null,
@@ -222,13 +235,24 @@ function loadSkillState(skillName) {
   const skillDir = getSkillDirectory(skillName);
   const stateFile = path.join(skillDir, STATE_FILENAME);
   if (!fs.existsSync(stateFile)) {
-    return { importedTo: null, importedAt: null };
+    return { ...DEFAULT_SKILL_STATE };
   }
 
   try {
-    return JSON.parse(fs.readFileSync(stateFile, "utf-8"));
+    const parsed = JSON.parse(fs.readFileSync(stateFile, "utf-8"));
+    return {
+      ...DEFAULT_SKILL_STATE,
+      ...parsed,
+      tags: Array.isArray(parsed?.tags)
+        ? parsed.tags.map((tag) => String(tag).trim().toLowerCase()).filter(Boolean)
+        : [],
+      latestQaReport:
+        parsed?.latestQaReport && typeof parsed.latestQaReport === "object"
+          ? parsed.latestQaReport
+          : null,
+    };
   } catch {
-    return { importedTo: null, importedAt: null };
+    return { ...DEFAULT_SKILL_STATE };
   }
 }
 
@@ -247,35 +271,637 @@ function describeFromSkillFile(content) {
   return descriptionMatch ? descriptionMatch[1].trim() : "No description";
 }
 
-function listSkills(query = "", filter = "all") {
+function parseSkillFrontmatter(content) {
+  const frontmatterMatch = String(content).match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!frontmatterMatch) {
+    return { name: "", description: "" };
+  }
+
+  const frontmatter = frontmatterMatch[1];
+  const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
+  const descriptionMatch = frontmatter.match(/^description:\s*(.+)$/m);
+  return {
+    name: nameMatch ? nameMatch[1].trim() : "",
+    description: descriptionMatch ? descriptionMatch[1].trim() : "",
+  };
+}
+
+function extractSkillBody(content) {
+  const normalized = String(content || "");
+  const frontmatterMatch = normalized.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
+  return frontmatterMatch ? normalized.slice(frontmatterMatch[0].length).trim() : normalized.trim();
+}
+
+function inferSkillTags(name, description, references, stateTags = []) {
+  const combined = `${name} ${description} ${references.map((ref) => ref.name || ref).join(" ")}`.toLowerCase();
+  const tags = new Set(
+    stateTags.map((tag) => String(tag).trim().toLowerCase()).filter(Boolean)
+  );
+
+  const keywordMap = {
+    frontend: ["frontend", "react", "vue", "svelte", "angular", "nextjs", "next.js", "tailwind", "ui", "ux"],
+    backend: ["backend", "node", "python", "java", "go", "api", "server", "database", "auth"],
+    testing: ["test", "qa", "quality", "validation", "regression"],
+    security: ["security", "auth", "authorization", "secret", "owasp", "vulnerability", "hardening"],
+    architecture: ["architecture", "adr", "c4", "integration", "nfr"],
+    delivery: ["ci", "cd", "pipeline", "deploy", "release", "github actions"],
+    sre: ["sre", "incident", "observability", "slo", "error budget"],
+    project: ["project", "raid", "status", "schedule", "planning"],
+    business: ["business", "brd", "gap", "process", "analysis"],
+    documentation: ["doc", "documentation", "report"],
+  };
+
+  for (const [tag, keywords] of Object.entries(keywordMap)) {
+    if (keywords.some((keyword) => combined.includes(keyword))) {
+      tags.add(tag);
+    }
+  }
+
+  if (references.some((reference) => String(reference.name || reference).toLowerCase().includes("next"))) {
+    tags.add("nextjs");
+  }
+  if (references.some((reference) => String(reference.name || reference).toLowerCase().includes("tailwind"))) {
+    tags.add("tailwind");
+  }
+
+  return Array.from(tags).sort();
+}
+
+function getSkillLastUpdatedAt(skillName, files = null) {
+  const skillDir = getSkillDirectory(skillName);
+  const fileList = files || listSkillFiles(skillName);
+  const timestamps = fileList
+    .map((file) => {
+      try {
+        const stats = fs.statSync(path.join(skillDir, file.path));
+        return stats.mtimeMs;
+      } catch {
+        return 0;
+      }
+    })
+    .filter(Boolean);
+
+  if (timestamps.length === 0) {
+    return null;
+  }
+
+  return new Date(Math.max(...timestamps)).toISOString();
+}
+
+function getSkillFreshness({ lastUpdatedAt, lastAuditedAt }) {
+  const referenceDate = lastAuditedAt || lastUpdatedAt;
+  if (!referenceDate) {
+    return { status: "unknown", ageDays: null };
+  }
+
+  const ageMs = Date.now() - new Date(referenceDate).getTime();
+  const ageDays = Math.max(0, Math.floor(ageMs / (1000 * 60 * 60 * 24)));
+
+  if (ageDays >= STALE_SKILL_DAYS) {
+    return { status: "stale", ageDays };
+  }
+
+  if (ageDays >= REVIEW_SOON_DAYS) {
+    return { status: "review-soon", ageDays };
+  }
+
+  return { status: "recent", ageDays };
+}
+
+function calculateSkillScorecard({
+  healthStatus,
+  qualityStatus,
+  owner,
+  reviewer,
+  referenceCount,
+  freshnessStatus,
+  triggerSummary,
+  latestQaReport,
+}) {
+  let score = 0;
+
+  score += healthStatus === "passed" ? 35 : healthStatus === "warning" ? 22 : 8;
+
+  const triggerRatio =
+    triggerSummary?.promptCount > 0 ? triggerSummary.matchedCount / triggerSummary.promptCount : 0;
+  score += Math.round(triggerRatio * 15);
+
+  score += referenceCount > 0 ? 10 : 4;
+  score += owner ? 10 : 0;
+  score += reviewer ? 5 : 0;
+
+  if (qualityStatus === "production-ready") {
+    score += 15;
+  } else if (qualityStatus === "reviewed") {
+    score += 10;
+  } else {
+    score += 4;
+  }
+
+  if (freshnessStatus === "recent") {
+    score += 10;
+  } else if (freshnessStatus === "review-soon") {
+    score += 6;
+  } else if (freshnessStatus === "stale") {
+    score += 2;
+  } else {
+    score += 3;
+  }
+
+  if (latestQaReport) {
+    score += latestQaReport.recommendation === "No-go" ? 3 : 10;
+  }
+
+  const normalizedScore = Math.max(0, Math.min(100, score));
+  const grade =
+    normalizedScore >= 85 ? "A" : normalizedScore >= 70 ? "B" : normalizedScore >= 55 ? "C" : "D";
+  const stability =
+    grade === "A" && healthStatus === "passed" && freshnessStatus !== "stale" && qualityStatus !== "draft"
+      ? "stable"
+      : normalizedScore >= 70
+        ? "watch"
+        : "at-risk";
+
+  return {
+    score: normalizedScore,
+    grade,
+    stability,
+  };
+}
+
+function tokenizeForMatching(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s/-]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function buildTriggerPromptCandidates(skillName, tags = []) {
+  const prompts = [
+    `Help me with ${skillName}`,
+  ];
+
+  const promptMap = {
+    frontend: [
+      "Build a responsive dashboard UI",
+      "Fix this React layout and improve accessibility",
+    ],
+    backend: [
+      "Design the backend API for this feature",
+      "Review this Node.js server for correctness and auth issues",
+    ],
+    testing: [
+      "Audit this project and create test cases",
+      "Act like a senior test developer and validate regressions",
+    ],
+    security: [
+      "Run a security review on this login flow",
+      "Check this app for auth and secret handling issues",
+    ],
+    delivery: [
+      "Create a GitHub Actions CI/CD pipeline for this repo",
+      "Set up branch-safe deployment checks before merge",
+    ],
+    architecture: [
+      "Design the system architecture for this platform",
+      "Choose an integration pattern for these services",
+    ],
+    sre: [
+      "Define SLOs and monitoring for this service",
+      "Help run the postmortem after this outage",
+    ],
+    project: [
+      "Create a project plan and risk register",
+      "Write a weekly project status report",
+    ],
+    business: [
+      "Write a business case for this initiative",
+      "Help with BRD and gap analysis",
+    ],
+    documentation: [
+      "Write technical documentation for this service",
+      "Create a release note and setup guide",
+    ],
+  };
+
+  for (const tag of tags) {
+    const examples = promptMap[tag] || [];
+    for (const example of examples) {
+      prompts.push(example);
+    }
+  }
+
+  return Array.from(new Set(prompts)).slice(0, 6);
+}
+
+function validateSkillTriggering(skillName, description, tags = []) {
+  const descriptionTokens = new Set(tokenizeForMatching(description));
+  const prompts = buildTriggerPromptCandidates(skillName, tags);
+  const results = prompts.map((prompt) => {
+    const promptTokens = tokenizeForMatching(prompt);
+    const matchedTokens = promptTokens.filter((token) => descriptionTokens.has(token));
+    const matched = matchedTokens.length >= 2 || matchedTokens.includes(skillName.toLowerCase());
+    return {
+      prompt,
+      matched,
+      matchedTokens,
+    };
+  });
+
+  const matchedCount = results.filter((result) => result.matched).length;
+  const status =
+    matchedCount === 0 ? "fail" : matchedCount < Math.ceil(results.length / 2) ? "warn" : "pass";
+
+  return {
+    status,
+    matchedCount,
+    promptCount: results.length,
+    prompts: results,
+    detail:
+      status === "pass"
+        ? `${matchedCount} of ${results.length} sample prompts match the current trigger wording.`
+        : status === "warn"
+          ? `Only ${matchedCount} of ${results.length} sample prompts match the current trigger wording.`
+          : "The current trigger wording is too weak to match any of the sample prompts.",
+  };
+}
+
+function validateSkill(skillName) {
+  const normalized = normalizeSkillName(skillName);
+  const files = listSkillFiles(normalized);
+  const skill = loadSkill(normalized);
+  const state = loadSkillState(normalized);
+  const frontmatter = parseSkillFrontmatter(skill.skill);
+  const body = extractSkillBody(skill.skill);
+  const checks = [];
+
+  checks.push({
+    label: "Skill folder readability",
+    status: files.length > 0 ? "pass" : "fail",
+    detail: files.length > 0 ? "Skill files are present." : "No skill files were found.",
+  });
+
+  checks.push({
+    label: "SKILL.md exists",
+    status: files.some((file) => file.path === "SKILL.md") ? "pass" : "fail",
+    detail: files.some((file) => file.path === "SKILL.md") ? "SKILL.md is present." : "SKILL.md is missing.",
+  });
+
+  checks.push({
+    label: "Frontmatter includes name",
+    status: frontmatter.name ? "pass" : "fail",
+    detail: frontmatter.name ? `Frontmatter name is "${frontmatter.name}".` : "Frontmatter name is missing.",
+  });
+
+  checks.push({
+    label: "Frontmatter includes description",
+    status: frontmatter.description ? "pass" : "fail",
+    detail: frontmatter.description ? "Description is present." : "Description is missing from frontmatter.",
+  });
+
+  checks.push({
+    label: "Skill name matches folder",
+    status: frontmatter.name === normalized ? "pass" : "fail",
+    detail:
+      frontmatter.name === normalized
+        ? "Frontmatter name matches the folder name."
+        : `Expected name "${normalized}" but found "${frontmatter.name || "(missing)"}".`,
+  });
+
+  checks.push({
+    label: "Skill body has operating guidance",
+    status: body.length >= 80 ? "pass" : body.length > 0 ? "warn" : "fail",
+    detail:
+      body.length >= 80
+        ? "The body contains meaningful guidance."
+        : body.length > 0
+          ? "The body exists but is still very short."
+          : "The SKILL.md body is empty.",
+  });
+
+  const references = skill.references;
+  const inferredTags = inferSkillTags(normalized, frontmatter.description || "", references, state.tags);
+  checks.push({
+    label: "Reference support",
+    status: references.length > 0 ? "pass" : "warn",
+    detail:
+      references.length > 0
+        ? `${references.length} reference file(s) are available.`
+        : "No reference files found.",
+  });
+
+  const unlinkedReferences = references.filter((reference) => !skill.skill.includes(reference.name));
+  checks.push({
+    label: "Reference routing from SKILL.md",
+    status: unlinkedReferences.length === 0 ? "pass" : references.length === 0 ? "warn" : "warn",
+    detail:
+      references.length === 0
+        ? "No references to route from SKILL.md."
+        : unlinkedReferences.length === 0
+          ? "All references are mentioned in SKILL.md."
+          : `Some references are not explicitly mentioned: ${unlinkedReferences.map((ref) => ref.name).join(", ")}.`,
+  });
+
+  checks.push({
+    label: "State metadata",
+    status: state.tags.length > 0 || state.owner || state.qualityStatus !== "draft" ? "pass" : "warn",
+    detail:
+      state.tags.length > 0 || state.owner || state.qualityStatus !== "draft"
+        ? "Skill metadata is present."
+        : "No extra metadata recorded yet; tags/owner/status can improve discoverability.",
+  });
+
+  const triggerValidation = validateSkillTriggering(normalized, frontmatter.description, inferredTags);
+  checks.push({
+    label: "Prompt trigger coverage",
+    status: triggerValidation.status,
+    detail: triggerValidation.detail,
+    prompts: triggerValidation.prompts,
+  });
+
+  const failCount = checks.filter((check) => check.status === "fail").length;
+  const warnCount = checks.filter((check) => check.status === "warn").length;
+  const status = failCount > 0 ? "failed" : warnCount > 0 ? "warning" : "passed";
+
+  return {
+    status,
+    message:
+      status === "failed"
+        ? "One or more validation checks failed."
+        : status === "warning"
+          ? "Validation passed with warnings."
+          : "Validation passed successfully.",
+    triggerValidation,
+    failCount,
+    warnCount,
+    checks,
+  };
+}
+
+function getQaReportsDirectory(skillName) {
+  return safeJoin(QA_REPORTS_ROOT, normalizeSkillName(skillName));
+}
+
+function formatQaReportFindings(validation) {
+  return validation.checks
+    .filter((check) => check.status === "fail" || check.status === "warn")
+    .map((check) => {
+      const severity = check.status === "fail" ? "High" : "Medium";
+      return {
+        severity,
+        title: check.label,
+        area: "Skill definition",
+        expected: "The skill should satisfy the validation rule cleanly.",
+        actual: check.detail,
+        impact:
+          check.status === "fail"
+            ? "This weakens skill reliability and should be fixed before relying on the skill."
+            : "This leaves residual quality risk and should be improved soon.",
+      };
+    });
+}
+
+function getQaReleaseRecommendation(validation) {
+  if (validation.failCount > 0) {
+    return "No-go";
+  }
+  if (validation.warnCount > 0) {
+    return "Go with caution";
+  }
+  return "Go";
+}
+
+function generateSkillQaReport(skillName, validation) {
+  const now = new Date();
+  const createdAt = now.toISOString();
+  const reportId = `${createdAt.replace(/[:.]/g, "-")}`;
+  const findings = formatQaReportFindings(validation);
+  const recommendation = getQaReleaseRecommendation(validation);
+  const scope = [
+    "SKILL.md structure",
+    "frontmatter quality",
+    "reference presence and routing",
+    "skill metadata readiness",
+  ];
+  const monitoringWatchlist = [
+    "missing or weak skill descriptions",
+    "unlinked reference files",
+    "skills with repeated warnings across edits",
+    "skills marked ready without a recent validation pass",
+  ];
+  const remainingGaps =
+    validation.warnCount > 0
+      ? validation.checks.filter((check) => check.status === "warn").map((check) => check.label)
+      : ["No open validation gaps from this run."];
+
+  const lines = [
+    `# QA Report - ${skillName}`,
+    "",
+    `Generated: ${createdAt}`,
+    "",
+    "## objective",
+    "",
+    `Validate the current state of the \`${skillName}\` skill after recent changes and record release confidence.`,
+    "",
+    "## scope",
+    "",
+    ...scope.map((item) => `- ${item}`),
+    "",
+    "## environment and assumptions",
+    "",
+    "- Validation executed from the conductor skill workflow.",
+    "- This report covers skill-library quality checks, not runtime application penetration testing.",
+    "",
+    "## coverage summary",
+    "",
+    `- Overall status: ${validation.status}`,
+    `- Checks run: ${validation.checks.length}`,
+    `- Fails: ${validation.failCount}`,
+    `- Warnings: ${validation.warnCount}`,
+    "",
+    "## findings by severity",
+    "",
+  ];
+
+  if (findings.length === 0) {
+    lines.push("- No findings from this validation run.");
+  } else {
+    for (const finding of findings) {
+      lines.push(`[${finding.severity}] ${finding.title}`);
+      lines.push(`Area: ${finding.area}`);
+      lines.push("Steps: Run the conductor skill validation for this skill.");
+      lines.push(`Expected: ${finding.expected}`);
+      lines.push(`Actual: ${finding.actual}`);
+      lines.push(`Impact: ${finding.impact}`);
+      lines.push(`Evidence: validation rule output for "${finding.title}"`);
+      lines.push("");
+    }
+    if (lines[lines.length - 1] === "") {
+      lines.pop();
+    }
+  }
+
+  lines.push("");
+  lines.push("## release recommendation");
+  lines.push("");
+  lines.push(`- ${recommendation}`);
+  lines.push("");
+  lines.push("## monitoring watchlist");
+  lines.push("");
+  monitoringWatchlist.forEach((item) => lines.push(`- ${item}`));
+  lines.push("");
+  lines.push("## remaining gaps");
+  lines.push("");
+  remainingGaps.forEach((item) => lines.push(`- ${item}`));
+  lines.push("");
+
+  return {
+    id: reportId,
+    createdAt,
+    recommendation,
+    findingsCount: findings.length,
+    path: path.join(getQaReportsDirectory(skillName), `${reportId}.md`),
+    content: lines.join("\n"),
+  };
+}
+
+function saveSkillQaReport(skillName, validation) {
+  const report = generateSkillQaReport(skillName, validation);
+  fs.mkdirSync(path.dirname(report.path), { recursive: true });
+  fs.writeFileSync(report.path, report.content, "utf-8");
+
+  const state = loadSkillState(skillName);
+  saveSkillState(skillName, {
+    ...state,
+    lastAuditedAt: report.createdAt,
+    latestQaReport: {
+      id: report.id,
+      createdAt: report.createdAt,
+      recommendation: report.recommendation,
+      findingsCount: report.findingsCount,
+      relativePath: path.relative(/* turbopackIgnore: true */ process.cwd(), report.path).replace(/\\/g, "/"),
+    },
+  });
+
+  return {
+    id: report.id,
+    createdAt: report.createdAt,
+    recommendation: report.recommendation,
+    findingsCount: report.findingsCount,
+    relativePath: path.relative(/* turbopackIgnore: true */ process.cwd(), report.path).replace(/\\/g, "/"),
+    content: report.content,
+  };
+}
+
+function loadLatestSkillQaReport(skillName) {
+  const state = loadSkillState(skillName);
+  if (!state.latestQaReport?.relativePath) {
+    return null;
+  }
+
+  const reportPath = path.resolve(/* turbopackIgnore: true */ process.cwd(), state.latestQaReport.relativePath);
+  if (!fs.existsSync(reportPath)) {
+    return {
+      ...state.latestQaReport,
+      content: "",
+      missing: true,
+    };
+  }
+
+  return {
+    ...state.latestQaReport,
+    content: fs.readFileSync(reportPath, "utf-8"),
+    missing: false,
+  };
+}
+
+function getSkillRecord(entryName) {
+  const skillDir = path.join(SKILLS_ROOT, entryName);
+  const skillMdPath = path.join(skillDir, "SKILL.md");
+  const content = fs.existsSync(skillMdPath) ? fs.readFileSync(skillMdPath, "utf-8") : "";
+  const frontmatter = parseSkillFrontmatter(content);
+  const description = frontmatter.description || "No description";
+  const files = listSkillFiles(entryName);
+  const references = files.filter((file) => file.type === "reference");
+  const state = loadSkillState(entryName);
+  const validation = validateSkill(entryName);
+  const tags = inferSkillTags(entryName, description, references, state.tags);
+  const lastUpdatedAt = getSkillLastUpdatedAt(entryName, files);
+  const freshness = getSkillFreshness({
+    lastUpdatedAt,
+    lastAuditedAt: state.lastAuditedAt || null,
+  });
+  const scorecard = calculateSkillScorecard({
+    healthStatus: validation.status,
+    qualityStatus: state.qualityStatus || "draft",
+    owner: state.owner || "",
+    reviewer: state.reviewer || "",
+    referenceCount: references.length,
+    freshnessStatus: freshness.status,
+    triggerSummary: validation.triggerValidation,
+    latestQaReport: state.latestQaReport || null,
+  });
+
+  return {
+    name: entryName,
+    description,
+    importedTo: state.importedTo,
+    importedAt: state.importedAt,
+    tags,
+    owner: state.owner || "",
+    reviewer: state.reviewer || "",
+    qualityStatus: state.qualityStatus || "draft",
+    lastUpdatedAt,
+    lastAuditedAt: state.lastAuditedAt || null,
+    freshnessStatus: freshness.status,
+    freshnessAgeDays: freshness.ageDays,
+    scorecard,
+    latestQaReport: state.latestQaReport || null,
+    fileCount: files.length,
+    referenceCount: references.length,
+    healthStatus: validation.status,
+    triggerSummary: validation.triggerValidation,
+    validationSummary: {
+      status: validation.status,
+      failCount: validation.failCount,
+      warnCount: validation.warnCount,
+    },
+  };
+}
+
+function listSkills(query = "", filter = "all", tag = "") {
   const safeQuery = sanitizeText(query, 100, "Search query");
   const safeFilter = ["all", "imported", "pending"].includes(filter) ? filter : "all";
+  const safeTag = sanitizeText(tag, 40, "Tag").trim().toLowerCase();
   const entries = fs.existsSync(SKILLS_ROOT)
     ? fs.readdirSync(SKILLS_ROOT, { withFileTypes: true })
     : [];
   return entries
     .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
     .map((entry) => {
-      const skillDir = path.join(SKILLS_ROOT, entry.name);
-      const skillMdPath = path.join(skillDir, "SKILL.md");
-      const description = fs.existsSync(skillMdPath)
-        ? describeFromSkillFile(fs.readFileSync(skillMdPath, "utf-8"))
-        : "No description";
-      const state = loadSkillState(entry.name);
-      return {
-        name: entry.name,
-        description,
-        importedTo: state.importedTo,
-        importedAt: state.importedAt,
-      };
+      try {
+        return getSkillRecord(entry.name);
+      } catch (error) {
+        if (String(error?.message || "").includes("Skill not found")) {
+          return null;
+        }
+        throw error;
+      }
     })
+    .filter(Boolean)
     .filter((skill) => {
       const term = safeQuery.trim().toLowerCase();
       const matchesSearch =
         !term ||
         skill.name.toLowerCase().includes(term) ||
-        skill.description.toLowerCase().includes(term);
+        skill.description.toLowerCase().includes(term) ||
+        skill.tags.some((item) => item.includes(term));
       if (!matchesSearch) return false;
+
+      if (safeTag && !skill.tags.includes(safeTag)) {
+        return false;
+      }
 
       if (safeFilter === "imported") {
         return !!skill.importedTo;
@@ -286,6 +912,51 @@ function listSkills(query = "", filter = "all") {
       return true;
     })
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function getSkillInsights() {
+  const skills = listSkills();
+  const byTag = {};
+  const byQualityStatus = {};
+  const byHealthStatus = {};
+  const byOwner = {};
+  const byFreshnessStatus = {};
+  const byScoreGrade = {};
+  const byStability = {};
+
+  for (const skill of skills) {
+    byQualityStatus[skill.qualityStatus] = (byQualityStatus[skill.qualityStatus] || 0) + 1;
+    byHealthStatus[skill.healthStatus] = (byHealthStatus[skill.healthStatus] || 0) + 1;
+    const ownerKey = skill.owner || "unassigned";
+    byOwner[ownerKey] = (byOwner[ownerKey] || 0) + 1;
+    byFreshnessStatus[skill.freshnessStatus] = (byFreshnessStatus[skill.freshnessStatus] || 0) + 1;
+    byScoreGrade[skill.scorecard.grade] = (byScoreGrade[skill.scorecard.grade] || 0) + 1;
+    byStability[skill.scorecard.stability] = (byStability[skill.scorecard.stability] || 0) + 1;
+    for (const tag of skill.tags) {
+      byTag[tag] = (byTag[tag] || 0) + 1;
+    }
+  }
+
+  return {
+    totalSkills: skills.length,
+    importedSkills: skills.filter((skill) => skill.importedTo).length,
+    readySkills: skills.filter((skill) => skill.qualityStatus === "production-ready").length,
+    ownedSkills: skills.filter((skill) => skill.owner).length,
+    unownedSkills: skills.filter((skill) => !skill.owner).length,
+    staleSkills: skills.filter((skill) => skill.freshnessStatus === "stale").length,
+    stableSkills: skills.filter((skill) => skill.scorecard.stability === "stable").length,
+    healthSummary: byHealthStatus,
+    qualitySummary: byQualityStatus,
+    freshnessSummary: byFreshnessStatus,
+    scoreGradeSummary: byScoreGrade,
+    stabilitySummary: byStability,
+    tagSummary: Object.entries(byTag)
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .map(([tag, count]) => ({ tag, count })),
+    ownerSummary: Object.entries(byOwner)
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .map(([owner, count]) => ({ owner, count })),
+  };
 }
 
 function getSkillDirectory(skillName) {
@@ -732,6 +1403,12 @@ async function importSkill(skillName, importName, userId) {
 
 export {
   listSkills,
+  getSkillRecord,
+  validateSkill,
+  saveSkillQaReport,
+  loadLatestSkillQaReport,
+  getSkillInsights,
+  parseSkillFrontmatter,
   createSkill,
   getSkillDirectory,
   listSkillFiles,

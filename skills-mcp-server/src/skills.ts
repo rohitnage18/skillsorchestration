@@ -1,7 +1,7 @@
 /**
  * Filesystem logic for discovering and reading skills from the SKILLS_PATH
  * directory. Kept separate from index.ts so the MCP-protocol wiring and the
- * actual "what is a skill" logic don't get tangled together.
+ * actual "what is a skill" logic do not get tangled together.
  *
  * Expected directory shape (matches the skills already built for this project):
  *
@@ -25,13 +25,14 @@ import { join } from "node:path";
 
 const SKILL_FILE_NAME = "SKILL.md";
 const REFERENCES_DIR_NAME = "references";
+const STATE_FILE_NAME = "skill-state.json";
 
 export class SkillNotFoundError extends Error {
   constructor(name: string, available: string[]) {
     const suggestion =
       available.length > 0
         ? ` Available skills: ${available.join(", ")}.`
-        : " No skills were found at all — check that SKILLS_PATH points to the right folder.";
+        : " No skills were found at all - check that SKILLS_PATH points to the right folder.";
     super(`No skill named "${name}" was found.${suggestion}`);
     this.name = "SkillNotFoundError";
   }
@@ -41,18 +42,18 @@ export interface SkillSummary {
   name: string;
   description: string;
   referenceFiles: string[];
+  tags: string[];
+  qualityStatus: string;
+  healthStatus: "passed" | "warning" | "failed";
 }
 
-/** Parses the `description:` field out of a SKILL.md file's YAML frontmatter. */
 function parseDescription(skillMdContent: string): string {
   const frontmatterMatch = skillMdContent.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!frontmatterMatch) {
-    return "(no description found — this skill's SKILL.md is missing YAML frontmatter)";
+    return "(no description found - this skill's SKILL.md is missing YAML frontmatter)";
   }
 
   const frontmatter = frontmatterMatch[1];
-  // description fields here are a single line, possibly long; this matches
-  // from `description:` to the end of that line.
   const descriptionMatch = frontmatter.match(/^description:\s*(.+)$/m);
   if (!descriptionMatch) {
     return "(no description field found in this skill's frontmatter)";
@@ -61,7 +62,6 @@ function parseDescription(skillMdContent: string): string {
   return descriptionMatch[1].trim();
 }
 
-/** Returns true if `path` is a directory; false (rather than throwing) if it doesn't exist. */
 async function isDirectory(path: string): Promise<boolean> {
   try {
     const s = await stat(path);
@@ -71,7 +71,6 @@ async function isDirectory(path: string): Promise<boolean> {
   }
 }
 
-/** Returns true if `path` is a readable file; false (rather than throwing) if it doesn't exist. */
 async function isFile(path: string): Promise<boolean> {
   try {
     const s = await stat(path);
@@ -81,13 +80,6 @@ async function isFile(path: string): Promise<boolean> {
   }
 }
 
-/**
- * Lists the names of every direct subdirectory of skillsPath that contains a
- * SKILL.md file. Subdirectories without one (stray folders, work-in-progress
- * skills, .git, etc.) are silently skipped rather than causing an error —
- * the skills/ folder is allowed to contain things that aren't finished skills
- * yet without breaking discovery for everything else.
- */
 async function discoverSkillNames(skillsPath: string): Promise<string[]> {
   let entries;
   try {
@@ -116,7 +108,6 @@ async function discoverSkillNames(skillsPath: string): Promise<string[]> {
   return namesWithSkillMd.sort();
 }
 
-/** Lists the .md files inside a skill's references/ folder, if it has one. Returns [] if not. */
 async function listReferenceFiles(skillsPath: string, skillName: string): Promise<string[]> {
   const referencesPath = join(skillsPath, skillName, REFERENCES_DIR_NAME);
   if (!(await isDirectory(referencesPath))) {
@@ -130,10 +121,66 @@ async function listReferenceFiles(skillsPath: string, skillName: string): Promis
     .sort();
 }
 
-/**
- * Lists every available skill: its name, description (parsed from its
- * SKILL.md frontmatter), and the names of its reference files.
- */
+async function readSkillState(
+  skillsPath: string,
+  skillName: string
+): Promise<{
+  tags: string[];
+  qualityStatus: string;
+}> {
+  const statePath = join(skillsPath, skillName, STATE_FILE_NAME);
+  if (!(await isFile(statePath))) {
+    return { tags: [], qualityStatus: "draft" };
+  }
+
+  try {
+    const parsed = JSON.parse(await readFile(statePath, "utf-8"));
+    return {
+      tags: Array.isArray(parsed?.tags)
+        ? parsed.tags.map((tag: unknown) => String(tag).trim().toLowerCase()).filter(Boolean)
+        : [],
+      qualityStatus:
+        typeof parsed?.qualityStatus === "string" && parsed.qualityStatus.trim()
+          ? parsed.qualityStatus.trim()
+          : "draft",
+    };
+  } catch {
+    return { tags: [], qualityStatus: "draft" };
+  }
+}
+
+function inferTags(name: string, description: string, referenceFiles: string[], stateTags: string[]): string[] {
+  const tags = new Set(stateTags);
+  const combined = `${name} ${description} ${referenceFiles.join(" ")}`.toLowerCase();
+  const keywordMap: Record<string, string[]> = {
+    frontend: ["frontend", "react", "vue", "svelte", "angular", "next", "tailwind"],
+    backend: ["backend", "node", "python", "go", "java", "api", "database"],
+    testing: ["test", "quality", "qa", "validation"],
+    security: ["security", "auth", "authorization", "secret", "owasp", "vulnerability", "hardening"],
+    delivery: ["delivery", "ci", "cd", "pipeline", "deploy"],
+    architecture: ["architecture", "adr", "c4", "nfr"],
+    sre: ["sre", "incident", "observability", "slo"],
+  };
+
+  for (const [tag, keywords] of Object.entries(keywordMap)) {
+    if (keywords.some((keyword) => combined.includes(keyword))) {
+      tags.add(tag);
+    }
+  }
+
+  return Array.from(tags).sort();
+}
+
+function evaluateHealth(description: string, referenceFiles: string[]): "passed" | "warning" | "failed" {
+  if (!description || description.startsWith("(no description")) {
+    return "failed";
+  }
+  if (referenceFiles.length === 0) {
+    return "warning";
+  }
+  return "passed";
+}
+
 export async function listSkills(skillsPath: string): Promise<SkillSummary[]> {
   const names = await discoverSkillNames(skillsPath);
 
@@ -142,23 +189,22 @@ export async function listSkills(skillsPath: string): Promise<SkillSummary[]> {
     const skillMdPath = join(skillsPath, name, SKILL_FILE_NAME);
     const content = await readFile(skillMdPath, "utf-8");
     const referenceFiles = await listReferenceFiles(skillsPath, name);
+    const state = await readSkillState(skillsPath, name);
+    const description = parseDescription(content);
 
     summaries.push({
       name,
-      description: parseDescription(content),
+      description,
       referenceFiles,
+      tags: inferTags(name, description, referenceFiles, state.tags),
+      qualityStatus: state.qualityStatus,
+      healthStatus: evaluateHealth(description, referenceFiles),
     });
   }
 
   return summaries;
 }
 
-/**
- * Returns the full content of one skill: its SKILL.md, plus every file in
- * its references/ folder (if any), concatenated together with clear
- * `--- path/to/file ---` delimiters so a model reading the result can tell
- * exactly which section came from which file.
- */
 export async function getSkill(skillsPath: string, skillName: string): Promise<string> {
   const skillDir = join(skillsPath, skillName);
   const skillMdPath = join(skillDir, SKILL_FILE_NAME);
@@ -177,9 +223,7 @@ export async function getSkill(skillsPath: string, skillName: string): Promise<s
   for (const fileName of referenceFiles) {
     const filePath = join(skillDir, REFERENCES_DIR_NAME, fileName);
     const fileContent = await readFile(filePath, "utf-8");
-    sections.push(
-      `--- ${skillName}/${REFERENCES_DIR_NAME}/${fileName} ---\n\n${fileContent.trim()}`
-    );
+    sections.push(`--- ${skillName}/${REFERENCES_DIR_NAME}/${fileName} ---\n\n${fileContent.trim()}`);
   }
 
   return sections.join("\n\n");

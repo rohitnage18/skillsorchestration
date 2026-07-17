@@ -41,21 +41,21 @@ export default function Home() {
 
         <div className="hero-aside">
           <div className="metric-card feature-card hero-feature-card">
-            <div className="metric-icon accent">✓</div>
+            <div className="metric-icon accent">OK</div>
             <div>
               <p>Validation</p>
               <strong>Check skills before use</strong>
             </div>
           </div>
           <div className="metric-card feature-card hero-feature-card">
-            <div className="metric-icon accent">↗</div>
+            <div className="metric-icon accent">GO</div>
             <div>
               <p>Guardrails</p>
               <strong>Admin approval required</strong>
             </div>
           </div>
           <div className="metric-card feature-card hero-feature-card">
-            <div className="metric-icon accent">★</div>
+            <div className="metric-icon accent">TOP</div>
             <div>
               <p>Observability</p>
               <strong>Logs and emails for admins</strong>

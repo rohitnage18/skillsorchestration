@@ -40,6 +40,8 @@ export function mapActionToNotificationType(action) {
     "skill-change:approve": "USER_ACTION",
     "skill-change:reject": "USER_ACTION",
     "user:role:update": "USER_ACTION",
+    "user:branch:update": "USER_ACTION",
+    "user:external-id:update": "USER_ACTION",
     "user:status:update": "USER_ACTION",
     "auth:status-denied": "USER_ACTION",
   };
@@ -90,6 +92,8 @@ export function getNotificationTitle(action) {
     "skill-change:approve": "Skill Change Approved",
     "skill-change:reject": "Skill Change Rejected",
     "user:role:update": "User Role Updated",
+    "user:branch:update": "User Branch Updated",
+    "user:external-id:update": "User External ID Updated",
     "user:status:update": "User Status Updated",
     "auth:status-denied": "Inactive User Blocked",
   };
@@ -123,6 +127,8 @@ export function getActionLabel(action) {
     "skill-change:approve": "Skill change approved",
     "skill-change:reject": "Skill change rejected",
     "user:role:update": "User role updated",
+    "user:branch:update": "User branch updated",
+    "user:external-id:update": "User external ID updated",
     "user:status:update": "User status updated",
     "auth:status-denied": "Inactive user blocked",
   };

@@ -31,9 +31,11 @@ export async function requireUser(headers) {
   if (user.status !== "ACTIVE") {
     await logInactiveUserAccess(user);
     const error = new Error(
-      user.status === "PENDING"
-        ? "Your account is pending admin approval."
-        : "Your account is disabled."
+      user.status === "INVITED"
+        ? "Your account has been invited but is not active yet."
+        : user.status === "PENDING"
+          ? "Your account is pending admin approval."
+          : "Your account is disabled."
     );
     error.status = 403;
     throw error;

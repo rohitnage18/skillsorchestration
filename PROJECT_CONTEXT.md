@@ -50,6 +50,7 @@ Each event creates an audit log and admin notification. If SMTP is configured, a
 | 2026-07-09 | Defer strict write-prevention guardrails | The immediate requirement is visibility and admin notification; enforcement can be layered later |
 | 2026-07-09 | Point VS Code MCP `PROJECT_PATH` at the workspace | This enables `read_context` and `update_context` immediately for agents opened in this repo |
 | 2026-07-09 | Remove root-level notification templates | `conductor-app` is the single notification control plane and Prisma `Notification` is the source of truth |
+| 2026-07-16 | Make `main` a manual-PR branch and standardize personal working branches | Delivery safety now depends on branch CI, PR validation, personal branch usage, and GitHub branch protection instead of direct pushes |
 
 ## Current Status
 
@@ -60,6 +61,15 @@ Each event creates an audit log and admin notification. If SMTP is configured, a
 | VS Code extension | updated | Reports preview/use/file-update events when `skillsLibrary.conductorUrl` is configured |
 | Conductor app | updated | Logs create/import/edit/test/execute events and sends admin email via SMTP |
 | Documentation | updated | `README.md` now contains the detailed architecture, setup, event flow, admin protection, and troubleshooting guide |
+| Delivery workflow | updated | Branch CI, PR-to-main validation, direct-main guard, and personal-branch policy docs/workflows are in place; GitHub branch protection must still be enabled in the repo settings |
+| Skill coverage | updated | The library now covers product management, data engineering, mobile engineering, and AI engineering in addition to the earlier engineering and governance domains |
+| User branch ownership | updated | Admins can now store a preferred working branch on each user profile so branch ownership is tracked in the conductor app |
+| User activity visibility | updated | Admins now have a dashboard summary of per-user touched skills, workflows, and workspaces derived from the audit trail |
+| User lifecycle clarity | updated | Conductor now tracks `lastSeenAt` and supports an explicit `INVITED` status so onboarding and user activity state are clearer |
+| External identity mapping | updated | MCP/VS Code users now resolve through an admin-managed `externalUserId`, making external event identity cleaner and safer than using internal DB ids directly |
+| Skill governance visibility | updated | Skill ownership and freshness/staleness signals are now surfaced in conductor skill records, skill pages, and admin analytics |
+| Skill stability scorecards | updated | The conductor app now assigns each skill a score, grade, and stability lane, and admin analytics highlight stable skills versus watch/at-risk skills |
+| Verification layer | updated | The repo now has conductor smoke tests, cross-surface contract tests, a root `npm run verify:repo` command, and a repository-wide GitHub Actions verification workflow |
 | Context flow | partial | MCP tools support reading/updating `CONTEXT.md`; strict before/after enforcement is not implemented yet |
 | Security/guardrails | partial | Skill create/import/edit and admin cleanup routes require an admin database user; full auth and approval workflows are later-phase work |
 
@@ -86,3 +96,57 @@ Added basic admin guardrails: filesystem skill create/import/edit routes, audit 
 ### 2026-07-09
 
 Removed stale root-level notification template files and expanded `README.md` into the detailed operator/developer guide for the skill orchestration system.
+
+### 2026-07-16
+
+Added delivery guardrails for branch-based development: a personal-branch policy workflow,
+manual-PR guidance for `main`, updated agent instructions to ask before creating user
+branches, and repository documentation covering the GitHub branch protection settings
+needed to make `main` truly PR-only.
+
+### 2026-07-16
+
+Expanded the skills library with new domain skills for product management, data engineering,
+mobile engineering, and AI engineering, and improved the role/ownership framing across the
+existing skills so routing and handoffs are clearer.
+
+### 2026-07-16
+
+Added preferred Git branch tracking to user management in the conductor app so branch
+ownership is now stored, editable by admins, and logged through the audit trail.
+
+### 2026-07-16
+
+Added a user activity history view to the admin dashboard so admins can inspect per-user
+recent actions and touched skills, workflows, and imported workspaces from the existing
+audit log data.
+
+### 2026-07-16
+
+Added clearer user lifecycle handling with `lastSeenAt` tracking and an explicit `INVITED`
+status, improving onboarding visibility and making recent-user activity easier to reason
+about across browser auth and external event reporting.
+
+### 2026-07-16
+
+Added a first-class `externalUserId` identity mapping for external MCP/VS Code users, plus
+admin management and event-resolution logic, so external tool usage now maps onto trusted
+approved conductor users without depending on internal database user ids.
+
+### 2026-07-16
+
+Added visible skill-governance signals by surfacing skill owners/reviewers and introducing
+freshness-based stale-skill detection in the conductor app's browser, detail, and admin
+analytics views.
+
+### 2026-07-16
+
+Added scorecard-based skill governance with quality grades and stability lanes across the
+skill browser, individual skill detail views, and admin analytics, then re-verified the
+conductor app with a passing test run and production build.
+
+### 2026-07-16
+
+Added a repository-wide verification layer with new conductor smoke tests, cross-surface
+contract tests for conductor/MCP/VS Code skill behavior, a root `npm run verify:repo`
+command, and a dedicated GitHub Actions verification workflow.

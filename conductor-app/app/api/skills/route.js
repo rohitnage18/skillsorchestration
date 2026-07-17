@@ -1,4 +1,4 @@
-import { createSkill, listSkills } from "../../../lib/skillStorage.js";
+import { createSkill, getSkillInsights, listSkills } from "../../../lib/skillStorage.js";
 import { getErrorStatus, requireAdmin } from "../../../lib/auth.js";
 import { sanitizeDescription, sanitizeText, normalizeSkillNameInput } from "../../../lib/inputSafety.js";
 
@@ -13,7 +13,11 @@ export async function GET(req) {
   const url = new URL(req.url);
   const q = sanitizeText(url.searchParams.get("q") || "", 100, "Search query");
   const filter = sanitizeText(url.searchParams.get("filter") || "all", 20, "Filter");
-  return json(listSkills(q, filter));
+  const tag = sanitizeText(url.searchParams.get("tag") || "", 40, "Tag");
+  if (url.searchParams.get("view") === "insights") {
+    return json(getSkillInsights());
+  }
+  return json(listSkills(q, filter, tag));
 }
 
 export async function POST(req) {

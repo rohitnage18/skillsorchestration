@@ -1,0 +1,84 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { GET as getSkillSummary } from "../app/api/skills/[skillName]/summary/route.js";
+import { GET as getQaReport } from "../app/api/skills/[skillName]/qa-report/route.js";
+import { getSkillInsights, listSkills, saveSkillQaReport, validateSkill } from "../lib/skillStorage.js";
+
+const repoRoot = path.resolve(process.cwd(), "..");
+const skillsRoot = path.join(repoRoot, "skills");
+
+function createSkillFixture(skillName) {
+  const skillDir = path.join(skillsRoot, skillName);
+  fs.mkdirSync(path.join(skillDir, "references"), { recursive: true });
+  fs.writeFileSync(
+    path.join(skillDir, "SKILL.md"),
+    `---\nname: ${skillName}\ndescription: Use this skill for smoke testing and validation flows.\n---\n\n# ${skillName}\n\nUse this skill for smoke testing.\n`,
+    "utf-8"
+  );
+  fs.writeFileSync(
+    path.join(skillDir, "references", "guide.md"),
+    "# Guide\n\nSmoke test reference content.\n",
+    "utf-8"
+  );
+}
+
+function cleanupSkillFixture(skillName) {
+  fs.rmSync(path.join(skillsRoot, skillName), { recursive: true, force: true });
+  fs.rmSync(path.join(process.cwd(), "data", "skill-qa-reports", skillName), { recursive: true, force: true });
+}
+
+test("home, login, and skills pages keep their primary smoke-check copy", async () => {
+  const homeSource = fs.readFileSync(path.join(process.cwd(), "app", "page.js"), "utf-8");
+  const loginSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "page.jsx"), "utf-8");
+  const skillsSource = fs.readFileSync(path.join(process.cwd(), "app", "skills", "page.js"), "utf-8");
+
+  assert.match(homeSource, /Browse skills/);
+  assert.match(loginSource, /Sign in to Conductor Studio/);
+  assert.match(skillsSource, /Browse approved skills/);
+});
+
+test("skills data and insights remain usable for the conductor UI", async () => {
+  const skills = listSkills();
+  assert.ok(Array.isArray(skills));
+  assert.ok(skills.length > 0);
+  assert.ok(skills.every((skill) => skill.scorecard && skill.scorecard.grade));
+
+  const insights = getSkillInsights();
+  assert.ok(typeof insights.totalSkills === "number");
+  assert.ok(typeof insights.stableSkills === "number");
+  assert.ok(insights.scoreGradeSummary && typeof insights.scoreGradeSummary === "object");
+});
+
+test("skill summary and QA report APIs work for a validated skill", { concurrency: false }, async () => {
+  const skillName = "test-skill-app-smoke";
+  createSkillFixture(skillName);
+
+  try {
+    const summaryResponse = await getSkillSummary(new Request(`http://localhost/api/skills/${skillName}/summary`), {
+      params: Promise.resolve({ skillName }),
+    });
+    const summary = await summaryResponse.json();
+
+    assert.equal(summaryResponse.status, 200);
+    assert.equal(summary.skillInfo.name, skillName);
+    assert.equal(summary.hasSkillFile, true);
+    assert.ok(summary.referenceCount >= 1);
+    assert.ok(summary.scorecard);
+
+    const validation = validateSkill(skillName);
+    const report = saveSkillQaReport(skillName, validation);
+
+    const qaResponse = await getQaReport(new Request(`http://localhost/api/skills/${skillName}/qa-report`), {
+      params: Promise.resolve({ skillName }),
+    });
+    const qaReport = await qaResponse.json();
+
+    assert.equal(qaResponse.status, 200);
+    assert.equal(qaReport.id, report.id);
+    assert.ok(qaReport.relativePath.includes("skill-qa-reports"));
+  } finally {
+    cleanupSkillFixture(skillName);
+  }
+});

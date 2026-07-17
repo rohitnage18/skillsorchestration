@@ -6,7 +6,12 @@ import path from "node:path";
 import {
   __setSkillStorageTestHooks,
   importSkill,
+  loadLatestSkillQaReport,
   saveFile,
+  saveSkillQaReport,
+  validateSkill,
+  listSkills,
+  getSkillInsights,
 } from "../lib/skillStorage.js";
 import {
   __setRegistryServiceTestHooks,
@@ -193,4 +198,105 @@ test("registry skill execution logs skill:execute for successful server function
   assert.equal(logged[0].resource, "skill");
   assert.equal(logged[0].resourceId, "skill-123");
   assert.equal(logged[0].metadata.source, "registry");
+});
+
+test("skill validation reports warnings and inferred tags for documented skills", async () => {
+  const skillName = "test-skill-validation";
+  createSkillFixture(skillName);
+  fs.writeFileSync(
+    path.join(skillsRoot, skillName, "SKILL.md"),
+    `---\nname: ${skillName}\ndescription: Use this skill for frontend React quality validation, testing, and audit work on UI flows.\n---\n\n# ${skillName}\n\nUse this skill for frontend validation work. Read references/guide.md before using it, check important UI flows, and document the resulting quality findings for the team.\n`,
+    "utf-8"
+  );
+  fs.writeFileSync(
+    path.join(skillsRoot, skillName, "skill-state.json"),
+    JSON.stringify(
+      {
+        qualityStatus: "reviewed",
+        tags: ["custom-tag"],
+        owner: "platform-team",
+        reviewer: "qa-lead",
+        lastAuditedAt: "2026-01-01T00:00:00.000Z",
+      },
+      null,
+      2
+    ),
+    "utf-8"
+  );
+
+  try {
+    const validation = validateSkill(skillName);
+    const listed = listSkills();
+    const record = listed.find((item) => item.name === skillName);
+    const insights = getSkillInsights();
+
+    assert.ok(["passed", "warning"].includes(validation.status));
+    assert.ok(record);
+    assert.equal(record.qualityStatus, "reviewed");
+    assert.equal(record.owner, "platform-team");
+    assert.equal(record.reviewer, "qa-lead");
+    assert.equal(record.freshnessStatus, "stale");
+    assert.ok(record.scorecard);
+    assert.ok(["A", "B", "C", "D"].includes(record.scorecard.grade));
+    assert.ok(["stable", "watch", "at-risk"].includes(record.scorecard.stability));
+    assert.ok(record.tags.includes("frontend"));
+    assert.ok(record.tags.includes("testing"));
+    assert.ok(record.tags.includes("custom-tag"));
+    assert.ok(validation.triggerValidation.matchedCount >= 1);
+    assert.ok(insights.tagSummary.some((item) => item.tag === "frontend"));
+    assert.ok(insights.ownerSummary.some((item) => item.owner === "platform-team"));
+    assert.equal(insights.ownedSkills >= 1, true);
+    assert.equal(insights.staleSkills >= 1, true);
+    assert.equal(insights.stableSkills >= 0, true);
+    assert.ok(Object.keys(insights.scoreGradeSummary).length >= 1);
+    assert.ok(Object.keys(insights.stabilitySummary).length >= 1);
+  } finally {
+    cleanupSkillFixture(skillName);
+  }
+});
+
+test("skill trigger validation warns when description does not match realistic prompts", async () => {
+  const skillName = "test-skill-trigger-weak";
+  createSkillFixture(skillName);
+  fs.writeFileSync(
+    path.join(skillsRoot, skillName, "SKILL.md"),
+    `---\nname: ${skillName}\ndescription: Misc helper object\n---\n\n# ${skillName}\n\nTiny body.\n`,
+    "utf-8"
+  );
+
+  try {
+    const validation = validateSkill(skillName);
+    const triggerCheck = validation.checks.find((check) => check.label === "Prompt trigger coverage");
+
+    assert.ok(triggerCheck);
+    assert.ok(["warn", "fail"].includes(triggerCheck.status));
+    assert.ok(validation.triggerValidation.matchedCount < validation.triggerValidation.promptCount);
+  } finally {
+    cleanupSkillFixture(skillName);
+  }
+});
+
+test("skill QA report generation stores a reusable audit artifact", async () => {
+  const skillName = "test-skill-qa-report";
+  createSkillFixture(skillName);
+  fs.writeFileSync(
+    path.join(skillsRoot, skillName, "SKILL.md"),
+    `---\nname: ${skillName}\ndescription: Use this skill for security testing, delivery checks, auth review, and secret handling validation.\n---\n\n# ${skillName}\n\nUse this skill for security and testing work. Read references/guide.md before using it.\n`,
+    "utf-8"
+  );
+
+  try {
+    const validation = validateSkill(skillName);
+    const report = saveSkillQaReport(skillName, validation);
+    const loaded = loadLatestSkillQaReport(skillName);
+
+    assert.ok(["Go", "Go with caution"].includes(report.recommendation));
+    assert.ok(report.relativePath.includes("skill-qa-reports"));
+    assert.ok(loaded);
+    assert.equal(loaded.id, report.id);
+    assert.match(loaded.content, /## release recommendation/);
+  } finally {
+    cleanupSkillFixture(skillName);
+    fs.rmSync(path.join(process.cwd(), "data", "skill-qa-reports", skillName), { recursive: true, force: true });
+  }
 });

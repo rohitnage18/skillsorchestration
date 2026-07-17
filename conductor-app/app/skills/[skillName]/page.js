@@ -17,6 +17,7 @@ export default function SkillEditor({ params }) {
   const skillName = decodeURIComponent(encodedSkillName);
   const [summary, setSummary] = useState(null);
   const [testResult, setTestResult] = useState(null);
+  const [qaReport, setQaReport] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
   const [toast, setToast] = useState(initialToast);
@@ -43,6 +44,7 @@ export default function SkillEditor({ params }) {
       if (!res.ok) throw new Error(data.error || "Unable to load skill summary");
       setSummary(data);
       setTestResult(null);
+      setQaReport(null);
     } catch (error) {
       showToast(error.message, "error");
       setSummary(null);
@@ -96,6 +98,8 @@ export default function SkillEditor({ params }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Skill test failed");
       setTestResult(data);
+      setQaReport(data.qaReport || null);
+      await fetchSummary();
       showToast("Skill test complete", "success");
     } catch (error) {
       showToast(error.message, "error");
@@ -128,6 +132,45 @@ export default function SkillEditor({ params }) {
                 <span>Imported</span>
                 <strong>{summary.importedTo || "Not yet"}</strong>
               </div>
+              <div className="summary-item">
+                <span>Quality</span>
+                <strong>{summary.qualityStatus || "draft"}</strong>
+              </div>
+              <div className="summary-item">
+                <span>Owner</span>
+                <strong>{summary.owner || "Unassigned"}</strong>
+              </div>
+              <div className="summary-item">
+                <span>Reviewer</span>
+                <strong>{summary.reviewer || "Unassigned"}</strong>
+              </div>
+              <div className="summary-item">
+                <span>Freshness</span>
+                <strong>
+                  {summary.freshnessStatus}
+                  {typeof summary.freshnessAgeDays === "number" ? ` (${summary.freshnessAgeDays}d)` : ""}
+                </strong>
+              </div>
+              <div className="summary-item">
+                <span>Score</span>
+                <strong>{summary.scorecard ? `${summary.scorecard.score}/100` : "Unknown"}</strong>
+              </div>
+              <div className="summary-item">
+                <span>Grade</span>
+                <strong>{summary.scorecard?.grade || "Unknown"}</strong>
+              </div>
+              <div className="summary-item">
+                <span>Stability</span>
+                <strong>{summary.scorecard?.stability || "Unknown"}</strong>
+              </div>
+              <div className="summary-item">
+                <span>QA report</span>
+                <strong>{summary.latestQaReport ? summary.latestQaReport.recommendation : "Not yet"}</strong>
+              </div>
+              <div className="summary-item">
+                <span>Trigger prompts</span>
+                <strong>{summary.triggerSummary ? `${summary.triggerSummary.matchedCount}/${summary.triggerSummary.promptCount}` : "Unknown"}</strong>
+              </div>
             </div>
           ) : (
             <div className="empty-state-card">Loading summary...</div>
@@ -154,6 +197,19 @@ export default function SkillEditor({ params }) {
             <p className="eyebrow">Skill detail</p>
             <h1>{skillName}</h1>
             <p className="page-copy">Validate this skill and request import only when needed.</p>
+            <p className="page-copy">
+              Owner: {summary?.owner || "Unassigned"} | Reviewer: {summary?.reviewer || "Unassigned"}
+            </p>
+            <p className="page-copy">
+              Freshness: {summary?.freshnessStatus || "unknown"}
+              {typeof summary?.freshnessAgeDays === "number" ? ` | Age ${summary.freshnessAgeDays} days` : ""}
+            </p>
+            <p className="page-copy">
+              Scorecard: {summary?.scorecard ? `${summary.scorecard.score}/100 | Grade ${summary.scorecard.grade} | ${summary.scorecard.stability}` : "Not available"}
+            </p>
+            {summary?.tags?.length ? (
+              <p className="page-copy">Tags: {summary.tags.join(", ")}</p>
+            ) : null}
           </div>
         </div>
 
@@ -169,17 +225,46 @@ export default function SkillEditor({ params }) {
           </div>
 
           {testResult ? (
-            <div className="results-grid">
-              {testResult.checks.map((check) => (
-                <div key={check.label} className={`result-card ${check.status}`}>
-                  <div className="result-card-top">
-                    <p>{check.label}</p>
-                    <strong>{check.status === "pass" ? "PASS" : check.status === "warn" ? "WARN" : "FAIL"}</strong>
+            <>
+              <div className="results-grid">
+                {testResult.checks.map((check) => (
+                  <div key={check.label} className={`result-card ${check.status}`}>
+                    <div className="result-card-top">
+                      <p>{check.label}</p>
+                      <strong>{check.status === "pass" ? "PASS" : check.status === "warn" ? "WARN" : "FAIL"}</strong>
+                    </div>
+                    <p className="result-detail">{check.detail}</p>
                   </div>
-                  <p className="result-detail">{check.detail}</p>
+                ))}
+              </div>
+              {qaReport ? (
+                <div className="result-card pass">
+                  <div className="result-card-top">
+                    <p>QA report generated</p>
+                    <strong>{qaReport.recommendation}</strong>
+                  </div>
+                  <p className="result-detail">
+                    {qaReport.findingsCount} findings recorded. Saved to {qaReport.relativePath}.
+                  </p>
                 </div>
-              ))}
-            </div>
+              ) : null}
+              {testResult?.triggerValidation ? (
+                <div className={`result-card ${testResult.triggerValidation.status === "pass" ? "pass" : testResult.triggerValidation.status === "warn" ? "warn" : "fail"}`}>
+                  <div className="result-card-top">
+                    <p>Prompt trigger coverage</p>
+                    <strong>{`${testResult.triggerValidation.matchedCount}/${testResult.triggerValidation.promptCount}`}</strong>
+                  </div>
+                  <p className="result-detail">{testResult.triggerValidation.detail}</p>
+                  <div className="result-detail">
+                    {testResult.triggerValidation.prompts.map((item) => (
+                      <p key={item.prompt}>
+                        {item.matched ? "MATCH" : "MISS"}: {item.prompt}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : (
             <div className="empty-state-card">
               <h2>Ready to validate</h2>
@@ -201,6 +286,54 @@ export default function SkillEditor({ params }) {
           <div className="activity-item">
             <p>{testResult ? "Validation completed" : "Validation pending"}</p>
             <span>{testResult ? testResult.message : "Run the validation workflow."}</span>
+          </div>
+          <div className="activity-item">
+            <p>Latest QA report</p>
+            <span>
+              {summary?.latestQaReport
+                ? `${summary.latestQaReport.recommendation} on ${new Date(summary.latestQaReport.createdAt).toLocaleString()}`
+                : "No report generated yet"}
+            </span>
+          </div>
+          <div className="activity-item">
+            <p>Health summary</p>
+            <span>
+              {summary?.validationSummary
+                ? `${summary.validationSummary.failCount} fails, ${summary.validationSummary.warnCount} warnings`
+                : "No validation summary yet"}
+            </span>
+          </div>
+          <div className="activity-item">
+            <p>Ownership</p>
+            <span>
+              {summary?.owner
+                ? `${summary.owner}${summary?.reviewer ? ` | Reviewer ${summary.reviewer}` : ""}`
+                : "No owner assigned yet"}
+            </span>
+          </div>
+          <div className="activity-item">
+            <p>Freshness</p>
+            <span>
+              {summary?.freshnessStatus
+                ? `${summary.freshnessStatus}${typeof summary?.freshnessAgeDays === "number" ? ` | ${summary.freshnessAgeDays} days old` : ""}`
+                : "No freshness data yet"}
+            </span>
+          </div>
+          <div className="activity-item">
+            <p>Stability</p>
+            <span>
+              {summary?.scorecard
+                ? `${summary.scorecard.stability} | Grade ${summary.scorecard.grade} | ${summary.scorecard.score}/100`
+                : "No scorecard yet"}
+            </span>
+          </div>
+          <div className="activity-item">
+            <p>Trigger wording</p>
+            <span>
+              {summary?.triggerSummary
+                ? `${summary.triggerSummary.matchedCount} of ${summary.triggerSummary.promptCount} sample prompts matched`
+                : "No trigger summary yet"}
+            </span>
           </div>
           <div className="activity-item">
             <p>Import status</p>

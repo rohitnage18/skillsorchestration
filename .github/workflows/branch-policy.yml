@@ -1,0 +1,43 @@
+name: Branch Policy
+
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  enforce-branch-policy:
+    name: Enforce personal branch policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch naming and PR flow
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          branch="${HEAD_REF:-$REF_NAME}"
+          echo "Evaluating branch policy for: $branch"
+
+          if [[ "$branch" == "main" ]]; then
+            echo "main is protected and must never be used as a working branch."
+            exit 1
+          fi
+
+          if [[ ! "$branch" =~ ^users\/[A-Za-z0-9._-]+$ && ! "$branch" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "Branch '$branch' does not match the personal branch policy."
+            echo "Use either 'users/<username>' or a single per-user branch such as 'sanay'."
+            exit 1
+          fi
+
+          if [[ "$EVENT_NAME" == "pull_request" && "$BASE_REF" != "main" ]]; then
+            echo "Pull requests covered by this workflow must target main."
+            exit 1
+          fi
+
+          echo "Branch policy check passed."
