@@ -37,9 +37,10 @@ The intended flow is:
 This repo now includes GitHub Actions workflows that:
 
 - run CI on every non-`main` branch push
+- run full repository verification on every non-`main` branch push
 - run validation again on pull requests into `main`
 - fail direct pushes to `main`
-- enforce a personal-branch workflow for active development
+- enforce a personal-branch workflow for active development and reject PRs that do not target `main`
 
 In addition, the repository now treats the `quality-engineering` skill as the default
 senior-tester pass after meaningful code changes so updated work is re-verified for
@@ -48,8 +49,8 @@ regressions, edge cases, and release confidence.
 See `docs/CI_CD_BRANCH_POLICY.md` for the full workflow and the GitHub branch protection settings needed to truly block direct pushes.
 
 The intended branch model is one working branch per user, confirmed with that user before
-creation, with all work pushed to that user's branch and merged to `main` only through a
-manual pull request.
+creation, with all work pushed to that user's branch, automatically verified after push,
+and merged to `main` only through a manual pull request after checks pass.
 
 ## Admin Vs User Setup
 

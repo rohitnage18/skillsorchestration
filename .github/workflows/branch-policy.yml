@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
     branches:
-      - main
+      - "**"
   workflow_dispatch:
 
 jobs:
@@ -36,7 +36,9 @@ jobs:
           fi
 
           if [[ "$EVENT_NAME" == "pull_request" && "$BASE_REF" != "main" ]]; then
-            echo "Pull requests covered by this workflow must target main."
+            echo "Pull requests must target main only."
+            echo "Branch pushes are validated automatically after push."
+            echo "Use a manual PR only for the final merge into main."
             exit 1
           fi
 
