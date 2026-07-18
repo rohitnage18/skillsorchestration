@@ -1,4 +1,4 @@
-import { createSkill, getSkillInsights, listSkills } from "../../../lib/skillStorage.js";
+import { createSkill, findSimilarSkills, getSkillInsights, listSkills } from "../../../lib/skillStorage.js";
 import { getErrorStatus, requirePermission } from "../../../lib/auth.js";
 import { sanitizeDescription, sanitizeText, normalizeSkillNameInput } from "../../../lib/inputSafety.js";
 import { buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
@@ -17,6 +17,33 @@ export async function GET(req) {
   const tag = sanitizeText(url.searchParams.get("tag") || "", 40, "Tag");
   if (url.searchParams.get("view") === "insights") {
     return json(getSkillInsights());
+  }
+  if (url.searchParams.get("view") === "similarity") {
+    const skillName = sanitizeText(url.searchParams.get("skillName") || "", 80, "Skill name");
+    const description = sanitizeText(url.searchParams.get("description") || "", 500, "Description");
+    const triggerDescription = sanitizeText(
+      url.searchParams.get("triggerDescription") || "",
+      240,
+      "Trigger description"
+    );
+    const tags = sanitizeText(url.searchParams.get("tags") || "", 240, "Tags")
+      .split(",")
+      .map((tagValue) => tagValue.trim())
+      .filter(Boolean);
+    const starterReferences = sanitizeText(url.searchParams.get("references") || "", 240, "References")
+      .split(",")
+      .map((title) => title.trim())
+      .filter(Boolean)
+      .map((title) => ({ title, summary: "" }));
+    return json(
+      findSimilarSkills({
+        skillName,
+        description,
+        triggerDescription,
+        tags,
+        starterReferences,
+      })
+    );
   }
   return json(listSkills(q, filter, tag));
 }
@@ -49,6 +76,25 @@ export async function POST(req) {
           summary: sanitizeText(reference?.summary || "", 240, "Reference summary"),
         }))
       : [];
+    const confirmDuplicate = body.confirmDuplicate === true;
+    const similarity = findSimilarSkills({
+      skillName,
+      description,
+      triggerDescription,
+      tags,
+      starterReferences,
+    });
+
+    if (similarity.hasHighSimilarity && !confirmDuplicate) {
+      return json(
+        {
+          error: "This new skill is highly similar to an existing skill. Confirm duplicate creation to continue.",
+          code: "DUPLICATE_CONFIRMATION_REQUIRED",
+          similarity,
+        },
+        409
+      );
+    }
 
     const created = await createSkill(skillName, description, user.id, {
       role,

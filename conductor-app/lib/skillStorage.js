@@ -367,6 +367,24 @@ function normalizeSkillAuthoringOptions(options = {}) {
   };
 }
 
+function normalizeDraftSkillInput(input = {}) {
+  const skillName = input.skillName ? normalizeSkillNameInput(input.skillName) : "";
+  const description = sanitizeDescription(input.description || "New skill");
+  const options = normalizeSkillAuthoringOptions(input);
+
+  return {
+    skillName,
+    description,
+    role: options.role,
+    owner: options.owner,
+    reviewer: options.reviewer,
+    qualityStatus: options.qualityStatus,
+    triggerDescription: options.triggerDescription,
+    tags: options.tags,
+    starterReferences: options.starterReferences,
+  };
+}
+
 function buildSkillDocument(skillName, description, options = {}) {
   const roleHeading = options.role ? `Act as a senior ${options.role}.` : "Act as a senior specialist for this skill.";
   const triggerLine = options.triggerDescription
@@ -563,6 +581,93 @@ function tokenizeForMatching(value) {
     .replace(/[^a-z0-9\s/-]+/g, " ")
     .split(/\s+/)
     .filter(Boolean);
+}
+
+function jaccardSimilarity(leftTokens, rightTokens) {
+  const left = new Set(leftTokens);
+  const right = new Set(rightTokens);
+  if (left.size === 0 && right.size === 0) {
+    return 1;
+  }
+
+  let intersection = 0;
+  for (const token of left) {
+    if (right.has(token)) {
+      intersection += 1;
+    }
+  }
+
+  const union = new Set([...left, ...right]).size;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function scoreSimilaritySignals(candidate, existingSkill) {
+  const nameSimilarity = jaccardSimilarity(
+    tokenizeForMatching(candidate.skillName.replace(/[_-]+/g, " ")),
+    tokenizeForMatching(existingSkill.name.replace(/[_-]+/g, " "))
+  );
+  const descriptionSimilarity = jaccardSimilarity(
+    tokenizeForMatching(`${candidate.description} ${candidate.triggerDescription}`),
+    tokenizeForMatching(existingSkill.description)
+  );
+  const tagSimilarity = jaccardSimilarity(candidate.tags, existingSkill.tags || []);
+  const referenceSimilarity = jaccardSimilarity(
+    candidate.starterReferences.map((reference) => slugifyReferenceName(reference.title)),
+    (existingSkill.references || []).map((reference) => slugifyReferenceName(reference.name || reference.path || ""))
+  );
+
+  let weightedScore =
+    nameSimilarity * 0.34 +
+    descriptionSimilarity * 0.38 +
+    tagSimilarity * 0.18 +
+    referenceSimilarity * 0.1;
+
+  if (descriptionSimilarity >= 0.45 && tagSimilarity >= 0.5) {
+    weightedScore += 0.12;
+  }
+  if (descriptionSimilarity >= 0.45 && referenceSimilarity >= 0.5) {
+    weightedScore += 0.08;
+  }
+  if (tagSimilarity >= 0.5 && referenceSimilarity >= 0.5) {
+    weightedScore += 0.06;
+  }
+
+  weightedScore = Math.min(1, weightedScore);
+
+  return {
+    nameSimilarity,
+    descriptionSimilarity,
+    tagSimilarity,
+    referenceSimilarity,
+    weightedScore,
+  };
+}
+
+function classifySimilarity(score) {
+  if (score >= 0.5) {
+    return "high";
+  }
+  if (score >= 0.38) {
+    return "medium";
+  }
+  return "low";
+}
+
+function buildSimilarityReasons(signals, existingSkill) {
+  const reasons = [];
+  if (signals.nameSimilarity >= 0.5) {
+    reasons.push("similar skill naming");
+  }
+  if (signals.descriptionSimilarity >= 0.45) {
+    reasons.push("overlapping description or trigger wording");
+  }
+  if (signals.tagSimilarity >= 0.5 && existingSkill.tags?.length) {
+    reasons.push(`shared tags: ${existingSkill.tags.slice(0, 3).join(", ")}`);
+  }
+  if (signals.referenceSimilarity >= 0.5 && existingSkill.references?.length) {
+    reasons.push("similar reference pack");
+  }
+  return reasons;
 }
 
 function buildTriggerPromptCandidates(skillName, tags = []) {
@@ -1040,6 +1145,52 @@ function listSkills(query = "", filter = "all", tag = "") {
       return true;
     })
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function findSimilarSkills(input = {}, limit = 5) {
+  const draft = normalizeDraftSkillInput(input);
+  const skills = listSkills();
+  const similar = skills
+    .filter((skill) => skill.name !== draft.skillName)
+    .map((skill) => {
+      const loaded = loadSkill(skill.name);
+      const signals = scoreSimilaritySignals(
+        draft,
+        {
+          ...skill,
+          references: loaded.references,
+        }
+      );
+      return {
+        skillName: skill.name,
+        description: skill.description,
+        owner: skill.owner || "",
+        tags: skill.tags,
+        score: Number(signals.weightedScore.toFixed(2)),
+        level: classifySimilarity(signals.weightedScore),
+        reasons: buildSimilarityReasons(signals, { ...skill, references: loaded.references }),
+        signals: {
+          name: Number(signals.nameSimilarity.toFixed(2)),
+          description: Number(signals.descriptionSimilarity.toFixed(2)),
+          tags: Number(signals.tagSimilarity.toFixed(2)),
+          references: Number(signals.referenceSimilarity.toFixed(2)),
+        },
+      };
+    })
+    .filter((item) => item.score >= 0.3)
+    .sort((left, right) => right.score - left.score || left.skillName.localeCompare(right.skillName))
+    .slice(0, limit);
+
+  return {
+    candidate: {
+      skillName: draft.skillName,
+      description: draft.description,
+      tags: draft.tags,
+      referenceCount: draft.starterReferences.length,
+    },
+    topMatches: similar,
+    hasHighSimilarity: similar.some((item) => item.level === "high"),
+  };
 }
 
 function getSkillInsights() {
@@ -1560,6 +1711,7 @@ async function importSkill(skillName, importName, userId) {
 
 export {
   listSkills,
+  findSimilarSkills,
   getSkillRecord,
   validateSkill,
   saveSkillQaReport,

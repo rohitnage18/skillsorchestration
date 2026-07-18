@@ -835,6 +835,58 @@ button {
   margin-top: 18px;
 }
 
+.similarity-card {
+  margin-top: 18px;
+}
+
+.similarity-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.similarity-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.similarity-item strong,
+.similarity-score-block strong {
+  color: #ffffff;
+}
+
+.similarity-item p,
+.similarity-item span,
+.similarity-empty {
+  margin: 6px 0 0;
+  color: #cbd5e1;
+}
+
+.similarity-score-block {
+  min-width: 92px;
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 10px;
+}
+
+.similarity-confirm {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 14px;
+  color: #f8fafc;
+}
+
+.similarity-confirm input {
+  margin-top: 3px;
+}
+
 .stat-card {
   padding: 18px 20px;
   border-radius: 22px;

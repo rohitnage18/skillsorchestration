@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const initialToast = { visible: false, message: "", type: "info" };
+const initialSimilarityState = { loading: false, topMatches: [], hasHighSimilarity: false, checked: false };
 const initialWizardState = {
   skillName: "",
   description: "",
@@ -12,6 +13,7 @@ const initialWizardState = {
   reviewer: "",
   qualityStatus: "draft",
   triggerDescription: "",
+  confirmHighSimilarity: false,
   tags: "",
   referenceOneTitle: "",
   referenceOneSummary: "",
@@ -35,6 +37,7 @@ export default function SkillsHome() {
   const [isCreating, setIsCreating] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizard, setWizard] = useState(initialWizardState);
+  const [similarity, setSimilarity] = useState(initialSimilarityState);
   const [toast, setToast] = useState(initialToast);
 
   useEffect(() => {
@@ -47,6 +50,40 @@ export default function SkillsHome() {
     const timer = window.setTimeout(() => setToast(initialToast), 3200);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (!wizardOpen) {
+      setSimilarity(initialSimilarityState);
+      return;
+    }
+
+    const hasCandidateText =
+      wizard.skillName.trim() ||
+      wizard.description.trim() ||
+      wizard.triggerDescription.trim() ||
+      wizard.tags.trim() ||
+      wizard.referenceOneTitle.trim() ||
+      wizard.referenceTwoTitle.trim();
+
+    if (!hasCandidateText) {
+      setSimilarity(initialSimilarityState);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      fetchSimilarity();
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    wizardOpen,
+    wizard.skillName,
+    wizard.description,
+    wizard.triggerDescription,
+    wizard.tags,
+    wizard.referenceOneTitle,
+    wizard.referenceTwoTitle,
+  ]);
 
   const fetchSkills = async (search = "", filterValue = filter, tagValue = tag) => {
     setIsLoading(true);
@@ -83,7 +120,36 @@ export default function SkillsHome() {
 
   const resetWizard = () => {
     setWizard(initialWizardState);
+    setSimilarity(initialSimilarityState);
     setWizardOpen(false);
+  };
+
+  const fetchSimilarity = async () => {
+    setSimilarity((current) => ({ ...current, loading: true }));
+    try {
+      const queryParams = new URLSearchParams({
+        view: "similarity",
+        skillName: wizard.skillName.trim(),
+        description: wizard.description.trim(),
+        triggerDescription: wizard.triggerDescription.trim(),
+        tags: wizard.tags.trim(),
+        references: [wizard.referenceOneTitle.trim(), wizard.referenceTwoTitle.trim()].filter(Boolean).join(","),
+      });
+      const res = await fetch(`/api/skills?${queryParams.toString()}`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Unable to compare similar skills");
+      }
+      setSimilarity({
+        loading: false,
+        topMatches: data.topMatches || [],
+        hasHighSimilarity: Boolean(data.hasHighSimilarity),
+        checked: true,
+      });
+    } catch (error) {
+      setSimilarity(initialSimilarityState);
+      setToast({ visible: true, message: error.message, type: "error" });
+    }
   };
 
   const createSkill = async () => {
@@ -122,6 +188,7 @@ export default function SkillsHome() {
           reviewer: wizard.reviewer,
           qualityStatus: wizard.qualityStatus,
           triggerDescription: wizard.triggerDescription,
+          confirmDuplicate: wizard.confirmHighSimilarity,
           tags,
           starterReferences,
         }),
@@ -136,6 +203,7 @@ export default function SkillsHome() {
           reviewer: wizard.reviewer,
           qualityStatus: wizard.qualityStatus,
           triggerDescription: wizard.triggerDescription,
+          confirmDuplicate: wizard.confirmHighSimilarity,
           tags,
           starterReferences,
         });
@@ -350,8 +418,69 @@ export default function SkillsHome() {
                   </ul>
                 </div>
 
+                <div className="wizard-helper-card similarity-card">
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">Duplicate detection</p>
+                      <h3>Existing skill similarity</h3>
+                    </div>
+                    <span className={`status-pill ${similarity.hasHighSimilarity ? "danger" : "neutral"}`}>
+                      {similarity.loading
+                        ? "Checking"
+                        : similarity.hasHighSimilarity
+                          ? "High overlap"
+                          : similarity.checked
+                            ? "Clear enough"
+                            : "Waiting"}
+                    </span>
+                  </div>
+                  {similarity.topMatches.length > 0 ? (
+                    <div className="similarity-list">
+                      {similarity.topMatches.map((match) => (
+                        <div className="similarity-item" key={match.skillName}>
+                          <div>
+                            <strong>{match.skillName}</strong>
+                            <p>{match.description}</p>
+                            <span>
+                              {match.reasons.length > 0 ? match.reasons.join(" | ") : "General overlap detected"}
+                            </span>
+                          </div>
+                          <div className="similarity-score-block">
+                            <span className={`status-pill ${match.level === "high" ? "danger" : match.level === "medium" ? "neutral" : "success"}`}>
+                              {match.level}
+                            </span>
+                            <strong>{Math.round(match.score * 100)}%</strong>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="page-copy similarity-empty">
+                      {similarity.loading
+                        ? "Comparing against the current library..."
+                        : "No strong overlap detected yet."}
+                    </p>
+                  )}
+                  {similarity.hasHighSimilarity ? (
+                    <label className="similarity-confirm">
+                      <input
+                        type="checkbox"
+                        checked={wizard.confirmHighSimilarity}
+                        onChange={(event) => updateWizardField("confirmHighSimilarity", event.target.checked)}
+                      />
+                      <span>
+                        I understand this looks very similar to an existing skill and I still want to create it.
+                      </span>
+                    </label>
+                  ) : null}
+                </div>
+
                 <div className="wizard-actions">
-                  <button className="button primary" onClick={createSkill} disabled={isCreating}>
+                  <button
+                    className="button primary"
+                    onClick={createSkill}
+                    disabled={isCreating || (similarity.hasHighSimilarity && !wizard.confirmHighSimilarity)}
+                  >
                     {isCreating ? "Creating..." : "Create scaffold"}
                   </button>
                   <button className="button secondary" onClick={resetWizard} disabled={isCreating}>
