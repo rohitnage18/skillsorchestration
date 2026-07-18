@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   __setSkillStorageTestHooks,
   createSkill,
+  findSimilarSkills,
   loadSkill,
   loadSkillState,
   importSkill,
@@ -139,6 +140,52 @@ test("skill creation scaffolds wizard metadata and starter references", async ()
   assert.equal(logged.length, 1);
   assert.equal(logged[0].action, "skill:create");
   assert.equal(logged[0].metadata.authoringMode, "wizard");
+});
+
+test("duplicate skill detection finds similar existing skills before creation", async () => {
+  const skillName = "test-skill-duplicate-existing";
+  createSkillFixture(skillName);
+  fs.writeFileSync(
+    path.join(skillsRoot, skillName, "SKILL.md"),
+    `---\nname: ${skillName}\ndescription: Use this skill for ai release readiness deployment safety rollback planning evaluation monitoring release readiness deployment safety rollback planning.\n---\n\n# ${skillName}\n\nUse this skill for ai release readiness deployment safety rollback planning evaluation monitoring release readiness deployment safety rollback planning.\n`,
+    "utf-8"
+  );
+  fs.writeFileSync(
+    path.join(skillsRoot, skillName, "skill-state.json"),
+    JSON.stringify(
+      {
+        qualityStatus: "reviewed",
+        tags: ["ai", "delivery"],
+        owner: "platform-team",
+      },
+      null,
+      2
+    ),
+    "utf-8"
+  );
+  fs.writeFileSync(
+    path.join(skillsRoot, skillName, "references", "deployment-and-rollback.md"),
+    "# Deployment and rollback\n\nDeployment safety checks.\n",
+    "utf-8"
+  );
+
+  try {
+    const similarity = findSimilarSkills({
+      skillName: "ai-release-ops",
+      description: "Use this skill for ai release readiness deployment safety rollback planning evaluation monitoring release readiness deployment safety rollback planning.",
+      triggerDescription: "ai release readiness deployment safety rollback planning evaluation monitoring",
+      tags: ["ai", "delivery"],
+      starterReferences: [{ title: "deployment-and-rollback", summary: "Deployment safety checks." }],
+    });
+
+    assert.equal(similarity.topMatches.length >= 1, true);
+    assert.equal(similarity.topMatches[0].skillName, skillName);
+    assert.ok(["medium", "high"].includes(similarity.topMatches[0].level));
+    assert.equal(similarity.topMatches[0].score >= 0.38, true);
+    assert.ok(similarity.topMatches[0].reasons.length >= 1);
+  } finally {
+    cleanupSkillFixture(skillName);
+  }
 });
 
 test("filesystem SKILL.md edits log skill:file:update with skill metadata", async () => {

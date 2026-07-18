@@ -33,10 +33,13 @@ test("home, login, and skills pages keep their primary smoke-check copy", async 
   const homeSource = fs.readFileSync(path.join(process.cwd(), "app", "page.js"), "utf-8");
   const loginSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "page.jsx"), "utf-8");
   const skillsSource = fs.readFileSync(path.join(process.cwd(), "app", "skills", "page.js"), "utf-8");
+  const skillsApiSource = fs.readFileSync(path.join(process.cwd(), "app", "api", "skills", "route.js"), "utf-8");
 
   assert.match(homeSource, /Browse skills/);
   assert.match(loginSource, /Sign in to Conductor Studio/);
   assert.match(skillsSource, /Browse approved skills/);
+  assert.match(skillsSource, /I understand this looks very similar to an existing skill/);
+  assert.match(skillsApiSource, /DUPLICATE_CONFIRMATION_REQUIRED/);
 });
 
 test("skills data and insights remain usable for the conductor UI", async () => {
