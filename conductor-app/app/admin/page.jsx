@@ -646,12 +646,10 @@ export default async function AdminDashboardPage({ searchParams }) {
     reviewedRequests,
     auditActionGroups,
     notificationTypeGroups,
+    userStatusGroups,
     userCount,
     adminCount,
     normalUserCount,
-    invitedUserCount,
-    pendingUserCount,
-    disabledUserCount,
     logCount,
     notificationCount,
     sentEmailCount,
@@ -764,12 +762,13 @@ export default async function AdminDashboardPage({ searchParams }) {
       orderBy: { _count: { type: "desc" } },
       take: 8,
     }),
+    db.user.groupBy({
+      by: ["status"],
+      _count: { status: true },
+    }),
     db.user.count(),
     db.user.count({ where: { role: "ADMIN" } }),
     db.user.count({ where: { role: "USER" } }),
-    db.user.count({ where: { status: "INVITED" } }),
-    db.user.count({ where: { status: "PENDING" } }),
-    db.user.count({ where: { status: "DISABLED" } }),
     db.auditLog.count(),
     db.notification.count(),
     db.notification.count({ where: { emailSent: true } }),
@@ -810,6 +809,13 @@ export default async function AdminDashboardPage({ searchParams }) {
   ]);
 
   const userActivity = collectUserActivity(userActivityLogs, users);
+  const userStatusSummary = userStatusGroups.reduce((summary, group) => {
+    summary[group.status] = group._count.status;
+    return summary;
+  }, {});
+  const invitedUserCount = userStatusSummary.INVITED || 0;
+  const pendingUserCount = userStatusSummary.PENDING || 0;
+  const disabledUserCount = userStatusSummary.DISABLED || 0;
   const workflowSummary = workflowStatusGroups.reduce((summary, group) => {
     summary[group.status] = group._count.status;
     return summary;
