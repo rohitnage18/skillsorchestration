@@ -11,12 +11,20 @@ const saveButton = document.getElementById("saveButton");
 const reloadButton = document.getElementById("reloadButton");
 const statusMessage = document.getElementById("statusMessage");
 const toast = document.getElementById("toast");
+const activeSkillName = document.getElementById("activeSkillName");
+const activeSkillDescription = document.getElementById("activeSkillDescription");
+const activeSkillSelect = document.getElementById("activeSkillSelect");
+const importTargetSelect = document.getElementById("importTargetSelect");
+const customImportTarget = document.getElementById("customImportTarget");
+const ACTIVE_SKILL_STORAGE_KEY = "conductor-active-skill";
+const CUSTOM_IMPORT_TARGET = "__custom__";
 
 let skills = [];
 let selectedSkill = null;
 let selectedFile = null;
 let currentContent = "";
 let toastTimer = null;
+let activeImportTarget = "";
 
 function setStatus(message, type = "info") {
   statusMessage.textContent = message;
@@ -56,6 +64,88 @@ async function requestSkillChange(body) {
   });
 }
 
+function persistActiveSkill(name) {
+  try {
+    if (name) {
+      window.localStorage.setItem(ACTIVE_SKILL_STORAGE_KEY, name);
+    } else {
+      window.localStorage.removeItem(ACTIVE_SKILL_STORAGE_KEY);
+    }
+  } catch {}
+}
+
+function readStoredActiveSkill() {
+  try {
+    return window.localStorage.getItem(ACTIVE_SKILL_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function renderActiveSkillSelect() {
+  if (!activeSkillSelect) return;
+  activeSkillSelect.innerHTML = "";
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Select a skill";
+  activeSkillSelect.appendChild(placeholder);
+
+  for (const skill of skills) {
+    const option = document.createElement("option");
+    option.value = skill.name;
+    option.textContent = skill.name;
+    activeSkillSelect.appendChild(option);
+  }
+
+  activeSkillSelect.value = selectedSkill || readStoredActiveSkill() || "";
+}
+
+function renderImportTargets() {
+  if (!importTargetSelect) return;
+
+  if (!selectedSkill) {
+    importTargetSelect.innerHTML = '<option value="">Choose import target</option>';
+    importTargetSelect.disabled = true;
+    customImportTarget.hidden = true;
+    return;
+  }
+
+  const options = Array.from(new Set([`${selectedSkill}-imported`, selectedSkill, `${selectedSkill}-workspace`]));
+  importTargetSelect.innerHTML = "";
+
+  for (const optionValue of options) {
+    const option = document.createElement("option");
+    option.value = optionValue;
+    option.textContent = optionValue;
+    importTargetSelect.appendChild(option);
+  }
+
+  const customOption = document.createElement("option");
+  customOption.value = CUSTOM_IMPORT_TARGET;
+  customOption.textContent = "Custom workspace…";
+  importTargetSelect.appendChild(customOption);
+
+  importTargetSelect.disabled = false;
+  importTargetSelect.value = activeImportTarget && (options.includes(activeImportTarget) || activeImportTarget === CUSTOM_IMPORT_TARGET)
+    ? activeImportTarget
+    : options[0];
+
+  customImportTarget.hidden = importTargetSelect.value !== CUSTOM_IMPORT_TARGET;
+  if (!customImportTarget.hidden) {
+    customImportTarget.focus();
+  }
+}
+
+function updateActiveSkillSurface() {
+  const current = skills.find((skill) => skill.name === selectedSkill) || null;
+  activeSkillName.textContent = current?.name || "No skill selected";
+  activeSkillDescription.textContent =
+    current?.description || "Select a skill from the dropdown so the current working skill stays visible.";
+  renderActiveSkillSelect();
+  renderImportTargets();
+}
+
 function renderSkills() {
   skillsList.innerHTML = "";
   for (const skill of skills) {
@@ -82,6 +172,7 @@ function renderSkills() {
 
     skillsList.appendChild(item);
   }
+  renderActiveSkillSelect();
 }
 
 function renderFileTree(files) {
@@ -116,7 +207,17 @@ async function loadSkills(query = "") {
   try {
     const encoded = query ? `?q=${encodeURIComponent(query)}` : "";
     skills = await apiFetch(`/api/skills${encoded}`);
+    const stored = readStoredActiveSkill();
+    if (!selectedSkill && stored && skills.some((skill) => skill.name === stored)) {
+      selectedSkill = stored;
+    } else if (!selectedSkill && skills[0]) {
+      selectedSkill = skills[0].name;
+    }
     renderSkills();
+    updateActiveSkillSurface();
+    if (selectedSkill && skills.some((skill) => skill.name === selectedSkill)) {
+      await selectSkill(selectedSkill);
+    }
   } catch (error) {
     editorTitle.textContent = "Unable to load skills";
     editorSubtitle.textContent = error.message;
@@ -128,7 +229,9 @@ async function loadSkills(query = "") {
 async function selectSkill(name) {
   selectedSkill = name;
   selectedFile = null;
+  persistActiveSkill(name);
   renderSkills();
+  updateActiveSkillSurface();
   editorTitle.textContent = name;
   editorSubtitle.textContent = "Loading files...";
   setStatus("Selected skill: " + name);
@@ -280,11 +383,12 @@ async function createSkillFlow() {
 
 async function importSkill() {
   if (!selectedSkill) return;
-  const targetName = window.prompt(
-    `Enter destination folder name for imported skill (default: ${selectedSkill}):`,
-    selectedSkill
-  );
-  if (targetName === null) return;
+  const targetName =
+    importTargetSelect.value === CUSTOM_IMPORT_TARGET ? customImportTarget.value.trim() : importTargetSelect.value.trim();
+  if (!targetName) {
+    showToast("Choose an import target first.", "error");
+    return;
+  }
 
   try {
     const result = await apiFetch("/api/import", {
@@ -292,6 +396,9 @@ async function importSkill() {
       body: JSON.stringify({ skillName: selectedSkill, targetName }),
     });
     setStatus(`Imported to ${result.path}`, "success");
+    showToast(`Imported to ${result.path}`, "success");
+    activeImportTarget = result.path;
+    renderImportTargets();
   } catch (error) {
     if (error.status === 403) {
       try {
@@ -312,6 +419,21 @@ async function importSkill() {
     setStatus(error.message, "error");
   }
 }
+
+activeSkillSelect.addEventListener("change", async () => {
+  const name = activeSkillSelect.value;
+  if (!name) return;
+  await selectSkill(name);
+});
+
+importTargetSelect.addEventListener("change", () => {
+  activeImportTarget = importTargetSelect.value;
+  customImportTarget.hidden = importTargetSelect.value !== CUSTOM_IMPORT_TARGET;
+});
+
+customImportTarget.addEventListener("input", () => {
+  activeImportTarget = customImportTarget.value.trim();
+});
 
 searchInput.addEventListener("input", () => {
   loadSkills(searchInput.value.trim());

@@ -8,16 +8,43 @@ export const metadata = {
   description: "A polished Next.js skill management studio for your team.",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function RootLayout({ children }) {
-  const session = await auth();
-  const unreadCount = session?.user?.id
-    ? await db.notification.count({
+  let session = null;
+  let unreadCount = 0;
+
+  try {
+    session = await auth();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const name = error instanceof Error ? error.name : "";
+    const isJwtSessionError =
+      name.includes("JWTSessionError") ||
+      message.includes("JWTSessionError") ||
+      message.includes("JWEInvalid") ||
+      message.includes("JWTInvalid");
+
+    if (!isJwtSessionError) {
+      throw error;
+    }
+
+    console.warn("Invalid or stale auth session detected in RootLayout, continuing as signed out.");
+  }
+
+  if (session?.user?.id) {
+    try {
+      unreadCount = await db.notification.count({
         where: {
           userId: session.user.id,
           read: false,
         },
-      })
-    : 0;
+      });
+    } catch (error) {
+      console.warn("Failed to load unread notifications in RootLayout:", error);
+      unreadCount = 0;
+    }
+  }
 
   return (
     <html lang="en">

@@ -4,6 +4,8 @@ import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const initialToast = { visible: false, message: "", type: "info" };
+const ACTIVE_SKILL_STORAGE_KEY = "conductor-active-skill";
+const CUSTOM_IMPORT_TARGET = "__custom__";
 
 function getRequestHeaders() {
   return {
@@ -21,9 +23,16 @@ export default function SkillEditor({ params }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
   const [toast, setToast] = useState(initialToast);
+  const [importTargetMode, setImportTargetMode] = useState(`${skillName}-imported`);
+  const [customImportTarget, setCustomImportTarget] = useState("");
 
   useEffect(() => {
     fetchSummary();
+  }, [skillName]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(ACTIVE_SKILL_STORAGE_KEY, skillName);
   }, [skillName]);
 
   useEffect(() => {
@@ -53,9 +62,26 @@ export default function SkillEditor({ params }) {
     }
   };
 
+  const importTargetOptions = Array.from(
+    new Set(
+      [
+        `${skillName}-imported`,
+        skillName,
+        `${skillName}-workspace`,
+        summary?.importedTo || "",
+      ].filter(Boolean)
+    )
+  );
+
+  const resolvedImportTarget =
+    importTargetMode === CUSTOM_IMPORT_TARGET ? customImportTarget.trim() : importTargetMode.trim();
+
   const importSkill = async () => {
-    const targetName = window.prompt("Import workspace name:", `${skillName}-imported`);
-    if (!targetName) return;
+    const targetName = resolvedImportTarget;
+    if (!targetName) {
+      showToast("Choose an import workspace target first.", "error");
+      return;
+    }
 
     try {
       const res = await fetch("/api/import", {
@@ -72,6 +98,7 @@ export default function SkillEditor({ params }) {
       if (!res.ok) throw new Error(data.error || "Unable to import skill");
       showToast(`Imported to ${data.path}`, "success");
       setSummary((prev) => ({ ...prev, importedTo: data.path }));
+      setImportTargetMode(data.path);
     } catch (error) {
       showToast(error.message, "error");
     }
@@ -183,6 +210,35 @@ export default function SkillEditor({ params }) {
             <button className="button primary full-width" onClick={runTest} disabled={isLoading || isTesting}>
               {isTesting ? "Testing..." : "Run validation"}
             </button>
+            <div className="skill-action-block">
+              <label className="form-field">
+                <span>Import target</span>
+                <select
+                  className="search-field"
+                  value={importTargetMode}
+                  onChange={(event) => setImportTargetMode(event.target.value)}
+                  disabled={isLoading}
+                >
+                  {importTargetOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                  <option value={CUSTOM_IMPORT_TARGET}>Custom workspace…</option>
+                </select>
+              </label>
+              {importTargetMode === CUSTOM_IMPORT_TARGET ? (
+                <label className="form-field">
+                  <span>Custom workspace name</span>
+                  <input
+                    className="search-field"
+                    value={customImportTarget}
+                    onChange={(event) => setCustomImportTarget(event.target.value)}
+                    placeholder={`${skillName}-workspace`}
+                  />
+                </label>
+              ) : null}
+            </div>
             <button className="button secondary full-width" onClick={importSkill} disabled={isLoading}>
               Request import
             </button>
@@ -192,6 +248,18 @@ export default function SkillEditor({ params }) {
       </aside>
 
       <main className="conductor-main">
+        <section className="active-skill-bar compact">
+          <div>
+            <p className="eyebrow">Active skill</p>
+            <h2>{skillName}</h2>
+            <p className="page-copy">This skill stays pinned here so it is always clear what is currently active.</p>
+          </div>
+          <div className="active-skill-controls">
+            <span className="status-pill success">Active now</span>
+            <span className="skill-pill">{summary?.importedTo ? `Imported to ${summary.importedTo}` : "Not imported yet"}</span>
+          </div>
+        </section>
+
         <div className="page-header conductor-header">
           <div>
             <p className="eyebrow">Skill detail</p>

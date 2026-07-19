@@ -38,6 +38,32 @@
       </aside>
 
       <main class="main-content">
+        <section class="active-skill-bar">
+          <div class="active-skill-copy">
+            <p class="brand-eyebrow">Active skill</p>
+            <h2 id="activeSkillName">No skill selected</h2>
+            <p id="activeSkillDescription" class="toolbar-note">
+              Select a skill from the dropdown so the current working skill stays visible.
+            </p>
+          </div>
+          <div class="active-skill-controls">
+            <select id="activeSkillSelect" class="search-input" aria-label="Select active skill">
+              <option value="">Select a skill</option>
+            </select>
+            <select id="importTargetSelect" class="search-input" aria-label="Select import target" disabled>
+              <option value="">Choose import target</option>
+            </select>
+            <input
+              id="customImportTarget"
+              class="search-input"
+              type="text"
+              placeholder="Custom workspace name"
+              aria-label="Custom import target"
+              hidden
+            />
+          </div>
+        </section>
+
         <section class="toolbar">
           <div class="toolbar-buttons">
             <button id="newSkillButton" class="button button-primary">New Skill</button>

@@ -22,6 +22,12 @@ npm.cmd run prisma:migrate
 npm.cmd run dev
 ```
 
+Recommended local auth-safe startup:
+
+```powershell
+npm.cmd run dev:local
+```
+
 Default local URL:
 
 ```txt
@@ -38,7 +44,7 @@ Minimum:
 DATABASE_URL="postgresql://user:password@host:5432/db?schema=conductor_app"
 AUTH_SECRET=replace-with-a-random-secret
 AUTH_URL=http://localhost:3000
-AUTH_TRUST_HOST=false
+AUTH_TRUST_HOST=true
 ALLOW_FIRST_USER_ADMIN=false
 ADMIN_EMAILS=sanayborhade619@gmail.com
 GOOGLE_CLIENT_ID=replace-with-google-client-id
@@ -67,6 +73,15 @@ Open:
 ```txt
 http://localhost:3000/login
 ```
+
+For Google OAuth in local development, configure the Google Cloud OAuth client with:
+
+- Authorized JavaScript origins:
+  - `http://localhost:3000`
+- Authorized redirect URIs:
+  - `http://localhost:3000/api/auth/callback/google`
+
+If the OAuth consent screen is still in testing mode, add your login email as a test user there too.
 
 The first signed-in user becomes admin automatically. Any email in `ADMIN_EMAILS` also becomes admin when that person signs in.
 

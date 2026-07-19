@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "dev:local": "powershell -NoProfile -Command \"$env:AUTH_URL='http://localhost:3000'; $env:AUTH_TRUST_HOST='true'; npm.cmd run dev\"",
     "prebuild": "prisma generate",
     "build": "next build",
     "start": "next start",
+    "start:local": "powershell -NoProfile -Command \"$env:AUTH_URL='https://localhost:3000'; $env:AUTH_TRUST_HOST='true'; $env:SKILL_EVENTS_TOKEN='localdevskilltoken1234567890abcdef'; $env:SKILL_EVENTS_HMAC_SECRET='localdevhmackey1234567890abcdef'; npm.cmd start\"",
     "test": "node --experimental-strip-types --test --test-concurrency=1 tests/**/*.test.mjs",
     "demo:seed": "node scripts/seed-demo-data.mjs",
     "prisma:generate": "prisma generate",
