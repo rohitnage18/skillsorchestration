@@ -1,13 +1,32 @@
 import { z } from "zod";
-import { db } from "./db";
 import { createSkill, importSkill, saveFile } from "./skillStorage.js";
-import { logAction } from "../features/logging/server-functions";
 import {
   descriptionSchema,
   editableSkillPathSchema,
   skillFileContentSchema,
   skillNameSchema,
 } from "./inputSafety.js";
+
+const skillChangeRequestTestHooks = {
+  db: null,
+  logAction: null,
+};
+
+async function getSkillChangeDb() {
+  if (skillChangeRequestTestHooks.db) {
+    return skillChangeRequestTestHooks.db;
+  }
+
+  return (await import("./db.ts")).db;
+}
+
+async function getSkillChangeLogger() {
+  if (skillChangeRequestTestHooks.logAction) {
+    return skillChangeRequestTestHooks.logAction;
+  }
+
+  return (await import("../features/logging/server-functions")).logAction;
+}
 
 export const skillChangeRequestSchema = z.discriminatedUnion("type", [
   z.object({
@@ -58,8 +77,10 @@ export function parseRejectRequest(input) {
 export async function createSkillChangeRequest(requestedById, input) {
   const payload = parseSkillChangeRequest(input);
   const resourceId = getResourceId(payload);
+  const database = await getSkillChangeDb();
+  const auditLogger = await getSkillChangeLogger();
 
-  const request = await db.skillChangeRequest.create({
+  const request = await database.skillChangeRequest.create({
     data: {
       requestedById,
       type: payload.type,
@@ -72,7 +93,7 @@ export async function createSkillChangeRequest(requestedById, input) {
     },
   });
 
-  await logAction({
+  await auditLogger({
     userId: requestedById,
     action: "skill-change:request",
     resource: "skill_change_request",
@@ -91,7 +112,8 @@ export async function createSkillChangeRequest(requestedById, input) {
 
 export async function listSkillChangeRequests(user) {
   const isAdmin = user.role === "ADMIN";
-  return db.skillChangeRequest.findMany({
+  const database = await getSkillChangeDb();
+  return database.skillChangeRequest.findMany({
     where: isAdmin ? {} : { requestedById: user.id },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     include: {
@@ -103,10 +125,12 @@ export async function listSkillChangeRequests(user) {
 }
 
 export async function approveSkillChangeRequest(requestId, reviewerId) {
+  const database = await getSkillChangeDb();
+  const auditLogger = await getSkillChangeLogger();
   const request = await getPendingRequest(requestId);
   const result = await applySkillChangeRequest(request, reviewerId);
 
-  const updated = await db.skillChangeRequest.update({
+  const updated = await database.skillChangeRequest.update({
     where: { id: request.id },
     data: {
       status: "APPROVED",
@@ -120,7 +144,7 @@ export async function approveSkillChangeRequest(requestId, reviewerId) {
     },
   });
 
-  await logAction({
+  await auditLogger({
     userId: reviewerId,
     action: "skill-change:approve",
     resource: "skill_change_request",
@@ -138,10 +162,12 @@ export async function approveSkillChangeRequest(requestId, reviewerId) {
 }
 
 export async function rejectSkillChangeRequest(requestId, reviewerId, input = {}) {
+  const database = await getSkillChangeDb();
+  const auditLogger = await getSkillChangeLogger();
   const request = await getPendingRequest(requestId);
   const { reason } = parseRejectRequest(input);
 
-  const updated = await db.skillChangeRequest.update({
+  const updated = await database.skillChangeRequest.update({
     where: { id: request.id },
     data: {
       status: "REJECTED",
@@ -155,7 +181,7 @@ export async function rejectSkillChangeRequest(requestId, reviewerId, input = {}
     },
   });
 
-  await logAction({
+  await auditLogger({
     userId: reviewerId,
     action: "skill-change:reject",
     resource: "skill_change_request",
@@ -173,7 +199,8 @@ export async function rejectSkillChangeRequest(requestId, reviewerId, input = {}
 }
 
 async function getPendingRequest(requestId) {
-  const request = await db.skillChangeRequest.findUnique({
+  const database = await getSkillChangeDb();
+  const request = await database.skillChangeRequest.findUnique({
     where: { id: requestId },
   });
 
@@ -231,4 +258,9 @@ function getResourceId(payload) {
   }
 
   return payload.skillName;
+}
+
+export function __setSkillChangeRequestTestHooks(hooks = {}) {
+  skillChangeRequestTestHooks.db = hooks.db ?? null;
+  skillChangeRequestTestHooks.logAction = hooks.logAction ?? null;
 }

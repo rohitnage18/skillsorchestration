@@ -47,3 +47,7 @@ yarn-error.log*
 
 # generated files
 app/generated
+conductor-app/data/release-snapshots/
+conductor-app/data/skill-versions/
+conductor-app/data/skill-qa-reports/
+conductor-app/imported-workspaces/

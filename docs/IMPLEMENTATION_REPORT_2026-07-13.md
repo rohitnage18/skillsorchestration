@@ -159,6 +159,28 @@ At the time of this report:
 - add richer diff rendering beyond summary metrics and side-by-side raw content
 - add templates or starter scaffolds that the `skill-authoring` skill can reference
 
+## 8. July 19, 2026 Operations Extension
+
+The platform has since been extended with additional operational controls in the conductor app:
+
+- skill dependency graph showing related, reused, and overlapping skills
+- local GitHub branch-health visibility for PR readiness and branch-policy review
+- system-health summaries for workflow failures, notification health, and validation trends
+- imported workspace intelligence showing freshness, risk signals, recommended skills, and recent activity
+- demo-mode sample data seeding for presentations and evaluation
+- release snapshots for lightweight known-good platform states
+
+Supporting documentation now also includes:
+
+- `docs/ARCHITECTURE_DIAGRAM_AND_RUNBOOKS.md`
+
+Verification coverage was expanded with new end-to-end style flow tests for:
+
+- wizard-based skill creation
+- duplicate-detection checks
+- version restore flow
+- approval-flow request and approval handling
+
 ## 8. Conclusion
 
 The project is no longer just a basic skill library. It now behaves like a real orchestration workspace with governance, traceability, and internal reuse patterns.

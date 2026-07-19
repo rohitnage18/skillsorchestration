@@ -26,6 +26,7 @@ The intended flow is:
 | `skills-vscode-extension/` | VS Code sidebar extension for browsing, previewing, inserting, and reporting skill activity. |
 | `conductor-app/` | Next.js control plane for APIs, audit logs, notifications, SMTP email, registry skills, workflows, and imported workspaces. |
 | `docs/SETUP.md` | Short setup companion for local development. |
+| `docs/ARCHITECTURE_DIAGRAM_AND_RUNBOOKS.md` | Architecture diagram, demo/operations runbooks, and handoff guidance. |
 | `docs/TODO_CHECKLIST.md` | Implementation checklist and remaining roadmap. |
 | `docs/USERS_AND_SKILL_EVENTS.md` | User setup and skill event email flow. |
 | `CONTEXT.md` | Root project context used by MCP agents in this workspace. |
@@ -141,8 +142,18 @@ It owns:
 - SMTP admin email.
 - External event ingestion through `POST /api/skill-events`.
 - Imported project workspaces under `conductor-app/imported-workspaces/`.
+- Skill dependency graph, overlap detection, and workspace intelligence views.
+- Local repository branch-health and PR-readiness reporting for manual merge workflows.
+- System-health dashboards and filesystem-backed release snapshots.
 
 The conductor app is now the single source of truth for notifications. Old root-level notification template files were removed to avoid competing implementations.
+
+Recent admin operations additions:
+
+- skill relationship graph showing related, reused, and overlapping skills
+- imported workspace intelligence with freshness, risk, recommended skills, and recent activity
+- release snapshots for stable known-good states
+- demo-mode seeding for presentation and evaluation
 
 ### VS Code Extension
 
