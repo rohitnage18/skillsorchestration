@@ -93,6 +93,7 @@
 - [x] Require `https://` `AUTH_URL` and strong non-placeholder secrets in production.
 - [x] Disable first-user auto-admin in production unless explicitly enabled.
 - [x] Use timing-safe comparison for `SKILL_EVENTS_TOKEN`.
+- [x] Add signed external event verification with `SKILL_EVENTS_HMAC_SECRET`, timestamp freshness checks, and replay protection.
 - [x] Add global production security headers through Next middleware.
 - [x] Replace browser `x-user-id`, `localStorage`, and `dev-user` fallback with real session/user resolution.
 - [x] Add `User.status` approval flow with `PENDING`, `ACTIVE`, and `DISABLED`.
@@ -111,6 +112,9 @@
 - [x] Log denied role checks as `auth:role-denied` audit records.
 - [x] Log admin role changes as `user:role:update` audit records.
 - [x] Add admin authorization checks to destructive notification cleanup endpoints.
+- [x] Add rate limiting on sensitive mutation and external event endpoints.
+- [x] Add finer-grained permission checks for admin-sensitive APIs beyond broad route-level admin checks.
+- [x] Add audit-log integrity hashing so entries carry chain metadata.
 - [x] Ensure users cannot mark another user's notification as read.
 - [x] Prevent path traversal for all filesystem skill operations.
 - [x] Restrict file edits to `SKILL.md` and `references/*.md` unless broader editing is intentional.
@@ -150,6 +154,7 @@
 - [x] Run `npm run build` in `conductor-app`.
 - [x] Run `npm run build` in `skills-vscode-extension`.
 - [x] Run `npm run build` in `skills-mcp-server`.
+- [x] Add security tests for rate limiting, replay protection, and signed event verification.
 
 ## Recommended Implementation Order
 

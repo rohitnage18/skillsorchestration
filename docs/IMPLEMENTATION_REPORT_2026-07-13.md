@@ -170,3 +170,49 @@ The most important new outcomes in this phase were:
 - a reusable mechanism for creating future skills more consistently
 
 These changes make the system much easier to operate, review, and grow safely.
+
+## 9. Post-Report Updates (July 19, 2026)
+
+Since the original July 13, 2026 report, the repository has moved forward in several major areas.
+
+### A. Skill authoring and duplicate prevention
+
+- added a guided skill authoring wizard inside the conductor app
+- the wizard now scaffolds:
+  - `SKILL.md`
+  - starter `references/*.md`
+  - `skill-state.json` ownership and readiness metadata
+- added duplicate-skill similarity detection before creation
+- added a confirmation gate so high-overlap skills require explicit confirmation before creation
+
+### B. Security hardening
+
+- added rate limiting on sensitive mutation endpoints
+- added signed external skill-event verification using `SKILL_EVENTS_HMAC_SECRET`
+- added replay protection for external event IDs
+- added finer-grained permission checks on protected APIs
+- added audit-log integrity hash chaining
+- added security automation through:
+  - `.github/workflows/security-checks.yml`
+  - `.github/dependabot.yml`
+
+### C. Branch and GitHub policy
+
+- documented the exact branch protection settings required for `main`
+- clarified that direct pushes to `main` intentionally fail through the guard workflow
+- cleaned branch state so only `main` and `sanay` remain locally and remotely
+
+### D. CI workflow repair
+
+- fixed the GitHub Actions `gitleaks` PR failure by setting `fetch-depth: 0` in the security workflow checkout step so the PR commit range can be resolved correctly
+
+### E. Current verified state as of July 19, 2026
+
+- active working branch: `sanay`
+- remote repository: `https://github.com/rohitnage18/skillsorchestration.git`
+- retained branches only:
+  - `main`
+  - `sanay`
+- conductor app verification status:
+  - `npm.cmd test` passing
+  - `npm.cmd run build` passing

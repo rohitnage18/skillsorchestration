@@ -143,6 +143,6 @@ Expected agent flow:
 
 ## Notes
 
-- Security and strict approval workflows are intentionally still a later phase.
+- Security and strict approval workflows are now active in the current implementation, including signed external events, replay protection, rate limiting, and branch-protection guidance.
 - Current write protection requires an admin database user for skill create/import/edit and admin log cleanup.
 - Do not delete `conductor-app`; it is the orchestration control plane.

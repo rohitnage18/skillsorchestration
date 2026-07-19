@@ -24,7 +24,7 @@ The orchestrator is already strong on logging, but it still needs a cleaner iden
 - [x] Add skill ownership metadata so each skill has an accountable maintainer or steward.
 - [x] Add stale-skill detection based on last update date, failed validations, and outdated references.
 - [ ] Add dependency mapping between skills so admins can see which skills reference or rely on others.
-- [ ] Add stronger duplicate-skill detection to catch overlapping scope before the library becomes noisy.
+- [x] Add stronger duplicate-skill detection to catch overlapping scope before the library becomes noisy.
 
 Why this matters:
 The library is growing fast. Governance will matter more and more as the number of skills, references, and contributors increases.
@@ -34,10 +34,12 @@ Latest verified milestone:
 - [x] Skill scorecards now surface per-skill score, grade, and stability in the skill browser, skill detail, and admin analytics.
 - [x] Stable-skill analytics now highlight the strongest reusable skills and give admins a watchlist view for weaker ones.
 - [x] This governance layer was re-verified on July 16, 2026 with `npm test` and `npm run build` in `conductor-app`.
+- [x] Duplicate-skill detection now compares new skill drafts against the existing library before creation.
+- [x] High-overlap drafts now require explicit confirmation before creation.
 
 ## Priority 3: Better skill authoring workflow
 
-- [ ] Add a guided "create skill" wizard in the conductor app that scaffolds `SKILL.md`, references, trigger description, and suggested neighboring skills.
+- [x] Add a guided "create skill" wizard in the conductor app that scaffolds `SKILL.md`, references, trigger description, and suggested neighboring skills.
 - [ ] Add built-in skill preview tests where an admin can paste sample prompts and see whether a skill would likely trigger.
 - [ ] Add reference completeness checks so a skill can be flagged when it mentions frameworks or patterns without matching reference files.
 - [ ] Add side-by-side comparison for draft vs approved skill change requests before approval.
@@ -88,7 +90,7 @@ The conductor app already has useful admin features, but observability can becom
 
 ## Priority 7: Branch, PR, and GitHub integration
 
-- [ ] Add explicit repository settings/setup documentation for required branch protection, required checks, and PR review rules.
+- [x] Add explicit repository settings/setup documentation for required branch protection, required checks, and PR review rules.
 - [ ] Add optional GitHub API integration so the conductor app can show PR status, branch state, and whether required checks passed.
 - [ ] Add a branch registration field on user profiles so admins can track who owns which working branch.
 - [ ] Add warnings in conductor when a requested change is not associated with the user's approved branch.
@@ -118,6 +120,11 @@ Imported workspaces are one of the most powerful parts of the concept. They can 
 
 Why this matters:
 The project is now rich enough that adoption and maintenance will benefit from sharper operator and contributor documentation.
+
+## July 19, 2026 verified note
+
+- [x] The conductor skill authoring wizard, duplicate-skill similarity checks, and duplicate-confirmation gate were re-verified on Sunday, July 19, 2026 with passing `npm.cmd test` and `npm.cmd run build` in `conductor-app`.
+- [x] Branch protection guidance now exists in both `README.md` and `docs/CI_CD_BRANCH_POLICY.md`.
 
 ## Suggested implementation order
 
