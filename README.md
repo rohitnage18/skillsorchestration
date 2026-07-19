@@ -48,6 +48,25 @@ regressions, edge cases, and release confidence.
 
 See `docs/CI_CD_BRANCH_POLICY.md` for the full workflow and the GitHub branch protection settings needed to truly block direct pushes.
 
+Recommended GitHub protection for `main`:
+
+- require a pull request before merging
+- require approvals
+- require required checks to pass
+- require the branch to be up to date before merge
+- require conversation resolution
+- do not allow bypassing the rule
+
+Recommended required checks:
+
+- `Enforce personal branch policy`
+- `Conductor app checks`
+- `MCP server build`
+- `VS Code extension build`
+- `Full repository verification`
+- `Secret scan`
+- `Dependency audit`
+
 The intended branch model is one working branch per user, confirmed with that user before
 creation, with all work pushed to that user's branch, automatically verified after push,
 and merged to `main` only through a manual pull request after checks pass.

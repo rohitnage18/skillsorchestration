@@ -3,22 +3,27 @@
 This folder is for normal users who only need to use skills from their laptop.
 
 Users do not need admin database access or SMTP credentials.
-They only enter their own external user id, name, and email in local config.
-When they use a skill, the conductor app automatically saves/updates that user in the database.
-
-If users are contributing code in this repository, they should work on their own personal
-Git branch and open a manual pull request into `main` after CI passes. New personal
-branches should be confirmed with the user before creation and should preferably follow
-`users/<username>`.
 
 ## User Needs
 
-- `skills/` — the skill library.
-- `skills-mcp-server/` — MCP server for `list_skills` and `get_skill`.
-- Optional: `skills-vscode-extension/` — VS Code sidebar.
-- Admin-provided `CONDUCTOR_URL`.
-- Admin-provided external user id/email.
-- Required admin-provided `SKILL_EVENTS_TOKEN`.
+- `skills/` - the skill library
+- `skills-mcp-server/` - MCP server for `list_skills` and `get_skill`
+- optional `skills-vscode-extension/` - VS Code sidebar
+- admin-provided `CONDUCTOR_URL`
+- admin-provided external user id and email
+- required admin-provided `SKILL_EVENTS_TOKEN`
+
+If the admin has configured signed external events, your MCP or extension integration may also need to send:
+
+- `x-skill-event-id`
+- `x-skill-event-timestamp`
+- `x-skill-event-signature`
+
+The signature format is:
+
+```text
+<timestamp>.<eventId>.<rawBody>
+```
 
 ## Install MCP Server
 
@@ -44,8 +49,8 @@ Each user should have their own identity:
 
 When the user calls:
 
-- `list_skills` — stored in the database without admin email.
-- `get_skill` — stored in the database and emailed to admins.
+- `list_skills`
+- `get_skill`
 
 the conductor app stores the log for admin visibility.
 
@@ -65,43 +70,31 @@ Set:
 }
 ```
 
-The first time this user calls `list_skills`, `get_skill`, previews, or uses a skill,
-their event is accepted only if an admin has already created/approved that user in the conductor database.
+The first time this user calls `list_skills`, `get_skill`, previews, or uses a skill, their event is accepted only if an admin has already created or approved that user in the conductor database.
 
 ## What Users Can Do
 
-- List skills.
-- Read skills.
-- Use/insert skills in VS Code.
-- Trigger usage logs for admin visibility.
+- list skills
+- read skills
+- use or insert skills in VS Code
+- trigger usage logs for admin visibility
+- run validation and usage actions they are allowed to run
+- submit skill change requests for admin approval
 
 ## What Users Cannot Do
 
-Users should not be able to create, edit, or import skills unless their database role is `ADMIN`.
+Users should not be able to create, edit, import, restore, or delete skills unless their database role is `ADMIN`.
+
 Users should also not be able to create, edit, or delete workflows unless their database role is `ADMIN`.
 
-Admin-protected APIs check the database user role.
-All protected APIs also require `status = ACTIVE`.
+All protected APIs require:
 
-## Input Rules
-
-- Skill names can use letters, numbers, hyphens, and underscores only.
-- Skill file update requests can only target `SKILL.md` or `references/*.md`.
-- Skill file content is limited to `250000` bytes.
-- Event metadata should be small and shallow; oversized metadata is rejected by the conductor app.
-
-If a normal user tries to create, import, or edit a skill from the UI, the app creates a
-pending approval request instead of applying the change immediately.
-
-Normal users can:
-
-- List/read skills.
-- Run skill validation/use actions.
-- List/read/execute workflows they can access.
-- Mark their own notifications as read.
-- Submit skill change requests for admin approval.
+- the correct database role
+- `status = ACTIVE`
 
 ## Skill Approval Flow
+
+If a normal user tries to create, import, or edit a skill from the UI, the app creates a pending approval request instead of applying the change immediately.
 
 Users can request:
 
@@ -110,14 +103,26 @@ Users can request:
 - `SKILL_FILE_UPDATE`
 
 The request is saved in the database as `SkillChangeRequest` with `status = PENDING`.
+
 An admin must approve it before the skill files or imported workspace are changed.
+
+## Branch Workflow
+
+If you are contributing code in this repository:
+
+- work only on your personal branch such as `sanay` or `users/<username>`
+- do not push directly to `main`
+- wait for CI, verification, and security checks to pass on your branch
+- merge to `main` only through a manual pull request
 
 ## Current Auth Status
 
-The Conductor browser app uses Google/GitHub login sessions.
-MCP and VS Code run outside that browser session, so they send user identity headers plus
-the required `SKILL_EVENTS_TOKEN`.
+The conductor browser app uses Google or GitHub login sessions.
 
-Important: the token is not enough by itself. Your `MCP_USER_ID` should match the
-user's admin-assigned `externalUserId`, and that user record must already be approved
-with `status = ACTIVE` in Prisma.
+MCP and VS Code run outside that browser session, so they send user identity headers plus the required `SKILL_EVENTS_TOKEN`.
+
+Important:
+
+- the token is not enough by itself
+- your `MCP_USER_ID` should match the admin-assigned `externalUserId`
+- that user record must already be approved with `status = ACTIVE` in Prisma

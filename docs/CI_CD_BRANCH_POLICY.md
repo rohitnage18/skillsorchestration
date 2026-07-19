@@ -55,8 +55,10 @@ In GitHub:
 3. Add a branch protection rule for `main`
 4. Enable:
    - `Require a pull request before merging`
+   - `Require approvals`
    - `Require status checks to pass before merging`
    - `Require branches to be up to date before merging`
+   - `Require conversation resolution before merging`
    - `Do not allow bypassing the above settings`
 5. Select these required checks:
    - `Enforce personal branch policy`
@@ -64,6 +66,34 @@ In GitHub:
    - `MCP server build`
    - `VS Code extension build`
    - `Full repository verification`
+   - `Secret scan`
+   - `Dependency audit`
+
+## Recommended protection checklist
+
+For `main`, the project standard is:
+
+1. No direct pushes
+2. Manual PR only
+3. Required approvals before merge
+4. Required status checks before merge
+5. Branch must be up to date with `main`
+6. Conversation threads resolved before merge
+7. No bypass for admins or maintainers
+
+This keeps `main` as a reviewed release branch instead of a working branch.
+
+## Why the direct-main workflow fails
+
+The `.github/workflows/direct-main-guard.yml` workflow is intentionally designed to fail if code is pushed directly to `main`.
+
+That failure is a policy signal, not a broken pipeline.
+
+Meaning:
+
+- if `main` receives a direct push, the workflow exits with code `1`
+- that tells maintainers the branch policy was bypassed
+- the real prevention layer is GitHub branch protection, not the workflow alone
 
 ## Personal branch policy
 
