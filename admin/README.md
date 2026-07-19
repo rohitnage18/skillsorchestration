@@ -113,8 +113,15 @@ The dashboard shows:
 - user approval, disable, and reactivation controls
 - pending skill approval requests
 - version history, compare, and restore for skill files
+- skill dependency graph and overlap hotspots
+- imported workspace intelligence with freshness, risk, and recommended skills
+- local GitHub branch health and merge-readiness status
+- workflow and notification health summaries
+- demo-data seeding and stable release snapshots
 - recent audit logs and top action summaries
 - recent notifications, unread status, delivery status, retry count, failure reason, and resend controls
+
+Runbooks and the architecture diagram live in `docs/ARCHITECTURE_DIAGRAM_AND_RUNBOOKS.md`.
 
 ## Production Security
 

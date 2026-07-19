@@ -17,6 +17,14 @@ import {
   restoreSkillVersion,
   saveImportedWorkspaceContext,
 } from "../../lib/skillStorage.js";
+import {
+  createReleaseSnapshot,
+  getImportedWorkspaceIntelligence,
+  getRepositoryBranchHealth,
+  getSkillDependencyGraph,
+  listReleaseSnapshots,
+  seedDemoWorkspaceData,
+} from "../../lib/operations.js";
 import { logAction, resendNotificationEmail } from "../../features/logging/server-functions";
 
 function formatDate(value) {
@@ -103,6 +111,14 @@ function formatVersionPreview(preview) {
 
 function joinMeta(parts) {
   return parts.filter(Boolean).join(" | ");
+}
+
+function titleCase(value) {
+  return String(value || "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function buildAuditWhere(filters) {
@@ -494,6 +510,29 @@ async function saveWorkspaceContext(formData) {
   redirect(`/admin?contextWorkspace=${encodeURIComponent(workspaceName)}`);
 }
 
+async function captureReleaseSnapshot(formData) {
+  "use server";
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") {
+    throw new Error("Admin permission is required.");
+  }
+
+  const label = String(formData.get("label") || "Stable snapshot");
+  createReleaseSnapshot(label);
+  revalidatePath("/admin");
+}
+
+async function seedDemoData() {
+  "use server";
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") {
+    throw new Error("Admin permission is required.");
+  }
+
+  seedDemoWorkspaceData();
+  revalidatePath("/admin");
+}
+
 export default async function AdminDashboardPage({ searchParams }) {
   const session = await auth();
 
@@ -565,6 +604,10 @@ export default async function AdminDashboardPage({ searchParams }) {
   const importedWorkspaces = listImportedWorkspaces();
   const skillLibrary = listSkills();
   const skillInsights = getSkillInsights();
+  const dependencyGraph = getSkillDependencyGraph();
+  const workspaceIntelligence = getImportedWorkspaceIntelligence();
+  const repositoryHealth = getRepositoryBranchHealth();
+  const releaseSnapshots = listReleaseSnapshots();
   const topSkillTags = skillInsights.tagSummary.slice(0, 8);
   const topSkillOwners = skillInsights.ownerSummary.slice(0, 8);
   const staleSkills = skillLibrary.filter((skill) => skill.freshnessStatus === "stale").slice(0, 8);
@@ -589,6 +632,10 @@ export default async function AdminDashboardPage({ searchParams }) {
   const selectedWorkspaceContext = selectedWorkspace
     ? loadImportedWorkspaceContext(selectedWorkspace.name)
     : "";
+  const selectedWorkspaceInsight =
+    workspaceIntelligence.workspaces.find((workspace) => workspace.name === selectedWorkspaceName) ||
+    workspaceIntelligence.workspaces[0] ||
+    null;
 
   const [
     users,
@@ -616,6 +663,9 @@ export default async function AdminDashboardPage({ searchParams }) {
     pendingRequestCount,
     approvedRequestCount,
     rejectedRequestCount,
+    workflowStatusGroups,
+    recentFailedWorkflowRuns,
+    recentWorkflowRuns,
   ] = await Promise.all([
     db.user.findMany({
       orderBy: [{ role: "asc" }, { email: "asc" }],
@@ -731,13 +781,51 @@ export default async function AdminDashboardPage({ searchParams }) {
     db.skillChangeRequest.count({ where: { status: "PENDING" } }),
     db.skillChangeRequest.count({ where: { status: "APPROVED" } }),
     db.skillChangeRequest.count({ where: { status: "REJECTED" } }),
+    db.workflowRun.groupBy({
+      by: ["status"],
+      _count: { status: true },
+    }),
+    db.workflowRun.findMany({
+      where: { status: "FAILED" },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      include: {
+        workflow: {
+          select: { id: true, name: true },
+        },
+        user: {
+          select: { email: true, name: true },
+        },
+      },
+    }),
+    db.workflowRun.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 16,
+      include: {
+        workflow: {
+          select: { id: true, name: true },
+        },
+      },
+    }),
   ]);
 
   const userActivity = collectUserActivity(userActivityLogs, users);
+  const workflowSummary = workflowStatusGroups.reduce((summary, group) => {
+    summary[group.status] = group._count.status;
+    return summary;
+  }, {});
 
   const deliverableEmailCount = sentEmailCount + failedEmailCount + pendingEmailCount;
   const emailDeliveryRate =
     deliverableEmailCount > 0 ? Math.round((sentEmailCount / deliverableEmailCount) * 100) : 0;
+  const totalWorkflowRuns = Object.values(workflowSummary).reduce((total, count) => total + count, 0);
+  const workflowFailureRate =
+    totalWorkflowRuns > 0 ? Math.round(((workflowSummary.FAILED || 0) / totalWorkflowRuns) * 100) : 0;
+  const validationTrend = {
+    failed: skillInsights.healthSummary.failed || 0,
+    warning: skillInsights.healthSummary.warning || 0,
+    passed: skillInsights.healthSummary.passed || 0,
+  };
 
   return (
     <section className="admin-shell">
@@ -1172,6 +1260,455 @@ export default async function AdminDashboardPage({ searchParams }) {
           ) : (
             <div className="empty-state">No imported workspaces yet. Import a skill workspace first to manage its context.</div>
           )}
+        </section>
+
+        <section className="admin-card wide">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Dependency graph</p>
+              <h2>Skill relationships, overlap, and reuse</h2>
+              <p className="muted-text">
+                Track where skills look duplicated, share references, or sit in the same problem space.
+              </p>
+            </div>
+            <span className="status-pill neutral">
+              {dependencyGraph.nodeCount} skills / {dependencyGraph.edgeCount} links
+            </span>
+          </div>
+
+          <div className="admin-grid">
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Hotspots</p>
+                  <h3>Most connected skills</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {dependencyGraph.mostConnectedSkills.length > 0 ? (
+                  dependencyGraph.mostConnectedSkills.map((item) => (
+                    <div className="admin-row" key={item.skillName}>
+                      <div>
+                        <strong>{item.skillName}</strong>
+                        <span>
+                          {joinMeta([
+                            `${item.overlapCount} relationship${item.overlapCount === 1 ? "" : "s"}`,
+                            `Health ${item.healthStatus}`,
+                            `Quality ${item.qualityStatus}`,
+                          ])}
+                        </span>
+                      </div>
+                      <a className="button secondary compact" href={`/skills/${encodeURIComponent(item.skillName)}`}>
+                        Open
+                      </a>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">No strong skill relationships detected yet.</div>
+                )}
+              </div>
+            </section>
+
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Overlap links</p>
+                  <h3>Top relationship edges</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {dependencyGraph.topEdges.length > 0 ? (
+                  dependencyGraph.topEdges.slice(0, 10).map((edge) => (
+                    <div className="admin-row" key={`${edge.source}:${edge.target}`}>
+                      <div>
+                        <strong>
+                          {edge.source} {"->"} {edge.target}
+                        </strong>
+                        <span>{joinMeta([titleCase(edge.relationship), ...edge.reasons.slice(0, 2)])}</span>
+                      </div>
+                      <span className="status-pill neutral">{Math.round(edge.score * 100)}%</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">No overlapping skills are strong enough to show yet.</div>
+                )}
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section className="admin-card wide">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">GitHub integration</p>
+              <h2>Branch health, checks, and merge readiness</h2>
+              <p className="muted-text">
+                This local repository integration shows whether the current branch is clean and ready for a manual PR.
+              </p>
+            </div>
+            <span className={`status-pill ${repositoryHealth.mergeReadiness.ready ? "success" : "danger"}`}>
+              {repositoryHealth.integrationMode}
+            </span>
+          </div>
+
+          <div className="version-diff-stats">
+            <div className="summary-item">
+              <span>Current branch</span>
+              <strong>{repositoryHealth.branch}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Commit</span>
+              <strong>{repositoryHealth.commit || "unknown"}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Ahead</span>
+              <strong>{repositoryHealth.ahead}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Behind</span>
+              <strong>{repositoryHealth.behind}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Workflow files</span>
+              <strong>{repositoryHealth.workflowFiles.length}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Merge readiness</span>
+              <strong>{repositoryHealth.mergeReadiness.ready ? "Ready" : "Action needed"}</strong>
+            </div>
+          </div>
+
+          <div className="admin-grid">
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Policy</p>
+                  <h3>Branch rules</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                <div className="admin-row">
+                  <div>
+                    <strong>Manual PR to main</strong>
+                    <span>Direct pushes should stay blocked and releases should merge after checks pass.</span>
+                  </div>
+                  <span className="status-pill success">Enabled</span>
+                </div>
+                <div className="admin-row">
+                  <div>
+                    <strong>Personal branch expectation</strong>
+                    <span>Users should work on their branch and keep `main` protected.</span>
+                  </div>
+                  <span className="status-pill success">Enabled</span>
+                </div>
+                <div className="admin-row">
+                  <div>
+                    <strong>Remote</strong>
+                    <span>{repositoryHealth.remote || "No origin configured"}</span>
+                  </div>
+                  <span className="status-pill neutral">{repositoryHealth.upstream || "No upstream"}</span>
+                </div>
+              </div>
+            </section>
+
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">PR readiness</p>
+                  <h3>Current branch blockers</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {repositoryHealth.mergeReadiness.issues.length > 0 ? (
+                  repositoryHealth.mergeReadiness.issues.map((issue) => (
+                    <div className="admin-row" key={issue}>
+                      <div>
+                        <strong>{issue}</strong>
+                        <span>Resolve this before opening or merging a pull request.</span>
+                      </div>
+                      <span className="status-pill danger">Blocked</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">Current branch looks clean for a manual PR review.</div>
+                )}
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section className="admin-card wide">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">System health</p>
+              <h2>Workflow failures, notification health, and validation trends</h2>
+            </div>
+            <span className="status-pill neutral">{totalWorkflowRuns} workflow runs tracked</span>
+          </div>
+
+          <div className="version-diff-stats">
+            <div className="summary-item">
+              <span>Workflow failures</span>
+              <strong>{workflowSummary.FAILED || 0}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Failure rate</span>
+              <strong>{workflowFailureRate}%</strong>
+            </div>
+            <div className="summary-item">
+              <span>Email failures</span>
+              <strong>{failedEmailCount}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Pending emails</span>
+              <strong>{pendingEmailCount}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Validation warnings</span>
+              <strong>{validationTrend.warning}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Validation failures</span>
+              <strong>{validationTrend.failed}</strong>
+            </div>
+          </div>
+
+          <div className="admin-grid">
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Workflow health</p>
+                  <h3>Recent failed runs</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {recentFailedWorkflowRuns.length > 0 ? (
+                  recentFailedWorkflowRuns.map((run) => (
+                    <div className="admin-row" key={run.id}>
+                      <div>
+                        <strong>{run.workflow?.name || run.workflowId}</strong>
+                        <span>
+                          {joinMeta([
+                            run.user?.name || run.user?.email || run.userId,
+                            formatDate(run.createdAt),
+                            run.completedAt ? `Completed ${formatDate(run.completedAt)}` : "Not completed",
+                          ])}
+                        </span>
+                      </div>
+                      <span className="status-pill danger">{run.status}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">No failed workflow runs recorded.</div>
+                )}
+              </div>
+            </section>
+
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Run stream</p>
+                  <h3>Recent workflow activity</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {recentWorkflowRuns.length > 0 ? (
+                  recentWorkflowRuns.map((run) => (
+                    <div className="admin-row" key={run.id}>
+                      <div>
+                        <strong>{run.workflow?.name || run.workflowId}</strong>
+                        <span>{joinMeta([run.status, formatDate(run.createdAt)])}</span>
+                      </div>
+                      <span
+                        className={`status-pill ${
+                          run.status === "SUCCEEDED" ? "success" : run.status === "FAILED" ? "danger" : "neutral"
+                        }`}
+                      >
+                        {run.status}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">No workflow activity yet.</div>
+                )}
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section className="admin-card wide">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Workspace intelligence</p>
+              <h2>Freshness, risk, recommendations, and recent activity</h2>
+            </div>
+            <span className="status-pill neutral">{workspaceIntelligence.totalWorkspaces} workspaces</span>
+          </div>
+
+          <div className="version-diff-stats">
+            <div className="summary-item">
+              <span>High risk</span>
+              <strong>{workspaceIntelligence.highRisk}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Medium risk</span>
+              <strong>{workspaceIntelligence.mediumRisk}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Low risk</span>
+              <strong>{workspaceIntelligence.lowRisk}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Selected workspace</span>
+              <strong>{selectedWorkspaceInsight?.name || "None"}</strong>
+            </div>
+          </div>
+
+          <div className="admin-grid">
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Risk board</p>
+                  <h3>Workspace watchlist</h3>
+                </div>
+              </div>
+              <div className="admin-table compact-list">
+                {workspaceIntelligence.workspaces.length > 0 ? (
+                  workspaceIntelligence.workspaces.map((workspace) => (
+                    <div className="admin-row" key={workspace.name}>
+                      <div>
+                        <strong>{workspace.name}</strong>
+                        <span>
+                          {joinMeta([
+                            `Risk ${workspace.riskLevel}`,
+                            workspace.freshnessDays === null ? "No freshness data" : `${workspace.freshnessDays} days old`,
+                            `${workspace.linkedSkills.length} linked skills`,
+                          ])}
+                        </span>
+                      </div>
+                      <span
+                        className={`status-pill ${
+                          workspace.riskLevel === "high"
+                            ? "danger"
+                            : workspace.riskLevel === "medium"
+                              ? "neutral"
+                              : "success"
+                        }`}
+                      >
+                        {titleCase(workspace.riskLevel)}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">No imported workspaces to analyze yet.</div>
+                )}
+              </div>
+            </section>
+
+            <section className="admin-card">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Recommendations</p>
+                  <h3>Selected workspace intelligence</h3>
+                </div>
+              </div>
+              {selectedWorkspaceInsight ? (
+                <div className="admin-table compact-list">
+                  {selectedWorkspaceInsight.riskSignals.map((signal) => (
+                    <div className="admin-row" key={`${selectedWorkspaceInsight.name}:${signal.label}`}>
+                      <div>
+                        <strong>{signal.label}</strong>
+                        <span>Risk signal detected for this imported workspace.</span>
+                      </div>
+                      <span className={`status-pill ${signal.severity === "high" ? "danger" : "neutral"}`}>
+                        {titleCase(signal.severity)}
+                      </span>
+                    </div>
+                  ))}
+                  {selectedWorkspaceInsight.recommendedSkills.map((item) => (
+                    <div className="admin-row" key={`${selectedWorkspaceInsight.name}:${item.skillName}`}>
+                      <div>
+                        <strong>{item.skillName}</strong>
+                        <span>{joinMeta([item.reason, `Quality ${item.qualityStatus}`])}</span>
+                      </div>
+                      <span className="status-pill neutral">{Math.round(item.score * 100)}%</span>
+                    </div>
+                  ))}
+                  {selectedWorkspaceInsight.recentActivity.map((item) => (
+                    <div className="admin-row" key={`${selectedWorkspaceInsight.name}:${item.name}`}>
+                      <div>
+                        <strong>{item.name}</strong>
+                        <span>{joinMeta([formatDate(new Date(item.updatedAt)), `${item.bytes} bytes`])}</span>
+                      </div>
+                      <span className="status-pill neutral">Recent</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">Select or import a workspace to view recommendations and recent activity.</div>
+              )}
+            </section>
+          </div>
+        </section>
+
+        <section className="admin-card wide">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Release operations</p>
+              <h2>Demo mode and stable release snapshots</h2>
+              <p className="muted-text">
+                Seed presentation data, capture known-good states, and keep a lightweight release history inside the app.
+              </p>
+            </div>
+            <span className="status-pill neutral">{releaseSnapshots.length} snapshots</span>
+          </div>
+
+          <div className="admin-actions">
+            <form action={seedDemoData} className="inline-form">
+              <button className="button secondary" type="submit">
+                Seed demo data
+              </button>
+            </form>
+            <form action={captureReleaseSnapshot} className="inline-form">
+              <input className="search-field" type="text" name="label" placeholder="Stable snapshot label" />
+              <button className="button primary" type="submit">
+                Capture snapshot
+              </button>
+            </form>
+          </div>
+
+          <div className="admin-table compact-list">
+            {releaseSnapshots.length > 0 ? (
+              releaseSnapshots.map((snapshot) => (
+                <div className="admin-row" key={snapshot.id}>
+                  <div>
+                    <strong>{snapshot.label}</strong>
+                    <span>
+                      {joinMeta([
+                        snapshot.id,
+                        snapshot.repository?.branch || "unknown branch",
+                        snapshot.repository?.commit || "unknown commit",
+                        formatDate(new Date(snapshot.createdAt)),
+                      ])}
+                    </span>
+                    <span>
+                      {joinMeta([
+                        `${snapshot.skills?.total || 0} skills`,
+                        `${snapshot.skills?.ready || 0} ready`,
+                        `${snapshot.skills?.stable || 0} stable`,
+                        `${snapshot.dependencyGraph?.edgeCount || 0} dependency links`,
+                      ])}
+                    </span>
+                  </div>
+                  <span className={`status-pill ${snapshot.repository?.dirty ? "danger" : "success"}`}>
+                    {snapshot.repository?.dirty ? "Dirty" : "Clean"}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="empty-state">No release snapshots captured yet.</div>
+            )}
+          </div>
         </section>
 
         <section className="admin-card wide">

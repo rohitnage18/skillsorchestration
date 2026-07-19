@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "test": "node --experimental-strip-types --test --test-concurrency=1 tests/**/*.test.mjs",
+    "demo:seed": "node scripts/seed-demo-data.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
