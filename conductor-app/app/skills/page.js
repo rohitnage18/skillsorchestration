@@ -20,6 +20,7 @@ const initialWizardState = {
   referenceTwoTitle: "",
   referenceTwoSummary: "",
 };
+const ACTIVE_SKILL_STORAGE_KEY = "conductor-active-skill";
 
 function getRequestHeaders() {
   return {
@@ -39,6 +40,7 @@ export default function SkillsHome() {
   const [wizard, setWizard] = useState(initialWizardState);
   const [similarity, setSimilarity] = useState(initialSimilarityState);
   const [toast, setToast] = useState(initialToast);
+  const [activeSkill, setActiveSkill] = useState("");
 
   useEffect(() => {
     fetchSkills();
@@ -46,10 +48,25 @@ export default function SkillsHome() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(ACTIVE_SKILL_STORAGE_KEY) || "";
+    setActiveSkill(stored);
+  }, []);
+
+  useEffect(() => {
     if (!toast.visible) return;
     const timer = window.setTimeout(() => setToast(initialToast), 3200);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (activeSkill) {
+      window.localStorage.setItem(ACTIVE_SKILL_STORAGE_KEY, activeSkill);
+    } else {
+      window.localStorage.removeItem(ACTIVE_SKILL_STORAGE_KEY);
+    }
+  }, [activeSkill]);
 
   useEffect(() => {
     if (!wizardOpen) {
@@ -96,6 +113,9 @@ export default function SkillsHome() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to load skills");
       setSkills(data);
+      if (!activeSkill && data.length > 0) {
+        setActiveSkill(data[0].name);
+      }
     } catch (error) {
       setToast({ visible: true, message: error.message, type: "error" });
     } finally {
@@ -252,10 +272,41 @@ export default function SkillsHome() {
 
   const importedCount = skills.filter((skill) => skill.importedTo).length;
   const topTags = insights?.tagSummary?.slice(0, 8) || [];
+  const activeSkillRecord = skills.find((skill) => skill.name === activeSkill) || null;
 
   return (
     <div className="conductor-shell conductor-full-width">
       <main className="conductor-main conductor-main-full">
+        <section className="active-skill-bar">
+          <div>
+            <p className="eyebrow">Active skill</p>
+            <h2>{activeSkillRecord?.name || activeSkill || "No skill selected"}</h2>
+            <p className="page-copy">
+              {activeSkillRecord?.description || "Pick a skill from the dropdown so the current working skill stays visible."}
+            </p>
+          </div>
+          <div className="active-skill-controls">
+            <select
+              className="search-field"
+              value={activeSkill}
+              onChange={(event) => setActiveSkill(event.target.value)}
+            >
+              <option value="">Select a skill</option>
+              {skills.map((skill) => (
+                <option key={skill.name} value={skill.name}>
+                  {skill.name}
+                </option>
+              ))}
+            </select>
+            <Link
+              href={activeSkill ? `/skills/${encodeURIComponent(activeSkill)}` : "/skills"}
+              className={`button ${activeSkill ? "primary" : "secondary"}`}
+            >
+              Open active skill
+            </Link>
+          </div>
+        </section>
+
         <div className="page-header conductor-header">
           <div>
             <p className="eyebrow">Skills</p>
@@ -542,13 +593,18 @@ export default function SkillsHome() {
         <div className="skill-grid conductor-grid">
           {skills.length > 0 ? (
             skills.map((skill) => (
-              <Link href={`/skills/${encodeURIComponent(skill.name)}`} key={skill.name} className="skill-card">
+              <Link
+                href={`/skills/${encodeURIComponent(skill.name)}`}
+                key={skill.name}
+                className={`skill-card ${activeSkill === skill.name ? "active" : ""}`}
+                onClick={() => setActiveSkill(skill.name)}
+              >
                 <div className="skill-card-header">
                   <div>
                     <h2>{skill.name}</h2>
                     <p className="skill-meta">{skill.description}</p>
                   </div>
-                  <span className="skill-chip">View</span>
+                  <span className="skill-chip">{activeSkill === skill.name ? "Active" : "View"}</span>
                 </div>
                 <div className="skill-card-footer">
                   <span className="skill-pill">{skill.importedTo ? "Imported" : "Available"}</span>

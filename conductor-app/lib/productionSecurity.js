@@ -7,11 +7,15 @@ const isProductionBuild =
 const placeholderPattern = /replace-with|changeme|example|your-|password|secret/i;
 
 export function getAuthTrustHost() {
+  if (!isProduction) {
+    return true;
+  }
+
   if (process.env.AUTH_TRUST_HOST !== undefined) {
     return process.env.AUTH_TRUST_HOST === "true";
   }
 
-  return !isProduction;
+  return false;
 }
 
 export function allowFirstUserAdmin() {

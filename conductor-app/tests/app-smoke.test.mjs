@@ -33,13 +33,22 @@ test("home, login, and skills pages keep their primary smoke-check copy", async 
   const homeSource = fs.readFileSync(path.join(process.cwd(), "app", "page.js"), "utf-8");
   const loginSource = fs.readFileSync(path.join(process.cwd(), "app", "login", "page.jsx"), "utf-8");
   const skillsSource = fs.readFileSync(path.join(process.cwd(), "app", "skills", "page.js"), "utf-8");
+  const skillDetailSource = fs.readFileSync(path.join(process.cwd(), "app", "skills", "[skillName]", "page.js"), "utf-8");
   const skillsApiSource = fs.readFileSync(path.join(process.cwd(), "app", "api", "skills", "route.js"), "utf-8");
+  const publicIndexSource = fs.readFileSync(path.join(process.cwd(), "public", "index.html"), "utf-8");
+  const publicAppSource = fs.readFileSync(path.join(process.cwd(), "public", "app.js"), "utf-8");
 
   assert.match(homeSource, /Browse skills/);
   assert.match(loginSource, /Sign in to Conductor Studio/);
   assert.match(skillsSource, /Browse approved skills/);
+  assert.match(skillsSource, /Active skill/);
+  assert.match(skillDetailSource, /This skill stays pinned here/);
   assert.match(skillsSource, /I understand this looks very similar to an existing skill/);
   assert.match(skillsApiSource, /DUPLICATE_CONFIRMATION_REQUIRED/);
+  assert.doesNotMatch(skillDetailSource, /window\.prompt\("Import workspace name:/);
+  assert.match(publicIndexSource, /Active skill/);
+  assert.match(publicAppSource, /ACTIVE_SKILL_STORAGE_KEY/);
+  assert.doesNotMatch(publicAppSource, /Enter destination folder name for imported skill/);
 });
 
 test("skills data and insights remain usable for the conductor UI", async () => {
