@@ -42,7 +42,8 @@ Admin emails go to every user with `role = "ADMIN"`.
 
 ## Configure MCP Users
 
-Set these environment variables in the MCP client/server config:
+Set these environment variables in the MCP client/server config.
+Do not leave the placeholder identity values from the committed `.vscode/mcp.json` in place:
 
 ```json
 {

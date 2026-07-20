@@ -36,6 +36,7 @@ npm.cmd run build
 ## VS Code MCP Config
 
 Use `.vscode/mcp.json` or copy from `users/mcp.example.json`.
+The committed `.vscode/mcp.json` is only a starter template and should be edited per user before use.
 
 Each user should have their own identity:
 
@@ -54,6 +55,7 @@ When the user calls:
 
 the conductor app stores the log for admin visibility.
 `list_skills` reads only from the configured local `SKILLS_PATH`, which should point at this repo's `skills/` folder.
+For real reporting, also add the admin-provided `SKILL_EVENTS_TOKEN` from `users/mcp.example.json`.
 
 ## VS Code Extension Config
 
