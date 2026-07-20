@@ -112,7 +112,7 @@ overloading the generic frontend/backend skills.
 
 `skills-mcp-server/` exposes:
 
-- `list_skills` - lists available skills.
+- `list_skills` - lists the local skills found under `SKILLS_PATH` (in this repo, `${workspaceFolder}/skills`).
 - `get_skill` - returns a skill's `SKILL.md` plus references.
 - `read_context` - reads `CONTEXT.md` from `PROJECT_PATH`.
 - `update_context` - rewrites named sections and appends a changelog entry.
@@ -127,6 +127,7 @@ The committed `.vscode/mcp.json` sets:
 ```
 
 That means agents opened in this repo can immediately read and update the root `CONTEXT.md`.
+It also means `list_skills` should return the skill folders created in this repository's `skills/` directory, not built-in Codex/session skills.
 
 ### Conductor App
 
@@ -396,6 +397,7 @@ The agent should:
 1. Call `read_context`.
 2. Understand the current architecture, decisions, status, and blockers.
 3. Call `list_skills`.
+   This should enumerate the local skill folders under this repo's `skills/` directory, such as `frontend`, `backend`, `sre`, and the other skills your team has created here.
 4. Choose the smallest relevant skill.
 5. Call `get_skill` for that skill.
 6. Read any included references before coding.

@@ -1,7 +1,6 @@
 import { errorResponse, jsonResponse } from "../../../../../lib/http";
 import { executeWorkflowSchema } from "../../../../../features/workflows/schemas";
 import { executeWorkflow } from "../../../../../features/workflows/engine";
-import { getOwnerId } from "../../../../../features/workflows/service";
 import { getErrorStatus, requirePermission } from "../../../../../lib/auth.js";
 import { buildRateLimitKey, enforceRateLimit } from "../../../../../lib/requestSecurity.js";
 
@@ -20,7 +19,7 @@ export async function POST(req: Request, context: RouteContext) {
       windowMs: 60_000,
     });
     const { input } = executeWorkflowSchema.parse(await req.json());
-    return jsonResponse(await executeWorkflow(await getOwnerId(req.headers), workflowId, input));
+    return jsonResponse(await executeWorkflow(user.id, workflowId, input));
   } catch (error) {
     return errorResponse(error, "Unable to execute workflow.", getErrorStatus(error, 400));
   }

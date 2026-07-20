@@ -53,6 +53,7 @@ When the user calls:
 - `get_skill`
 
 the conductor app stores the log for admin visibility.
+`list_skills` reads only from the configured local `SKILLS_PATH`, which should point at this repo's `skills/` folder.
 
 ## VS Code Extension Config
 

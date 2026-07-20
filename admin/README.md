@@ -3,6 +3,7 @@
 This folder is for the person or team running the central conductor app.
 
 Admins run the control plane that stores logs, manages users, reviews approvals, and sends notifications.
+The skill library itself lives in this repository's `skills/` folder, and MCP `list_skills` should list those local skill folders only.
 
 ## Admin Owns
 
@@ -167,7 +168,7 @@ Admin-only actions:
 
 User actions:
 
-- read and list skills
+- read and list skills from the local `skills/` library
 - run skill validation and use actions
 - read, list, and execute accessible workflows
 - mark only their own notifications as read
