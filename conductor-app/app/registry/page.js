@@ -43,6 +43,14 @@ export default function RegistryPage() {
     () => skills.find((skill) => skill.id === selectedSkillId || skill.slug === selectedSkillId),
     [skills, selectedSkillId],
   );
+  const registryCounts = useMemo(
+    () => ({
+      total: skills.length,
+      serverFunctions: skills.filter((skill) => skill.type === "SERVER_FUNCTION").length,
+      httpSkills: skills.filter((skill) => skill.type === "HTTP").length,
+    }),
+    [skills],
+  );
 
   async function loadSkills() {
     const res = await fetch("/api/registry/skills");
@@ -124,6 +132,31 @@ export default function RegistryPage() {
   return (
     <div className="conductor-shell conductor-full-width">
       <main className="conductor-main conductor-main-full">
+        <section className="registry-hero">
+          <div>
+            <p className="eyebrow">Registry Operations</p>
+            <h1>Shape skills as reusable backend capabilities, then test them in place.</h1>
+            <p className="page-copy">
+              Treat the registry like a capability workbench: define contracts, test payloads, and keep the execution
+              surface understandable for operators.
+            </p>
+          </div>
+          <div className="registry-hero-metrics">
+            <div className="stat-card">
+              <p>Total skills</p>
+              <strong>{registryCounts.total}</strong>
+            </div>
+            <div className="stat-card">
+              <p>Server functions</p>
+              <strong>{registryCounts.serverFunctions}</strong>
+            </div>
+            <div className="stat-card">
+              <p>HTTP skills</p>
+              <strong>{registryCounts.httpSkills}</strong>
+            </div>
+          </div>
+        </section>
+
         <div className="page-header conductor-header">
           <div>
             <p className="eyebrow">Skill Registry</p>
@@ -230,6 +263,23 @@ export default function RegistryPage() {
               Execute skill
             </button>
 
+            {selectedSkill ? (
+              <div className="registry-skill-glance">
+                <div className="summary-item">
+                  <span>Selected</span>
+                  <strong>{selectedSkill.name}</strong>
+                </div>
+                <div className="summary-item">
+                  <span>Type</span>
+                  <strong>{selectedSkill.type}</strong>
+                </div>
+                <div className="summary-item">
+                  <span>Route key</span>
+                  <strong>{selectedSkill.slug}</strong>
+                </div>
+              </div>
+            ) : null}
+
             {executionResult ? (
               <pre className="result-pre">{JSON.stringify(executionResult, null, 2)}</pre>
             ) : (
@@ -249,7 +299,11 @@ export default function RegistryPage() {
             </div>
             <div className="compact-list">
               {skills.map((skill) => (
-                <button key={skill.id} className="compact-row" onClick={() => setSelectedSkillId(skill.id)}>
+                <button
+                  key={skill.id}
+                  className={`compact-row ${selectedSkillId === skill.id ? "is-selected" : ""}`}
+                  onClick={() => setSelectedSkillId(skill.id)}
+                >
                   <span>{skill.name}</span>
                   <strong>{skill.type}</strong>
                 </button>
