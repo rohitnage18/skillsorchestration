@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "list:skills": "node scripts/list-skills.mjs",
     "verify:repo": "npm --prefix conductor-app test && npm --prefix conductor-app run build && npm --prefix skills-mcp-server run build && npm --prefix skills-vscode-extension run compile-check && npm --prefix skills-vscode-extension run build"
   }
 }

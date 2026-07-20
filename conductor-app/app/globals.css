@@ -2719,3 +2719,241 @@ button:disabled,
     width: 100%;
   }
 }
+
+/* Frontend skill UX refinement pass */
+:root {
+  font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  --display-font: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --panel-strong: rgba(7, 12, 23, 0.92);
+  --panel-soft: rgba(15, 23, 42, 0.78);
+  --outline-soft: rgba(148, 163, 184, 0.16);
+  --accent-cool: #93c5fd;
+  --accent-warm: #f59e0b;
+  --accent-fresh: #2dd4bf;
+}
+
+*:focus-visible {
+  outline: 2px solid rgba(147, 197, 253, 0.9);
+  outline-offset: 3px;
+}
+
+.brand-name,
+.page-header h1,
+.hero-copy h1,
+.active-skill-bar h2,
+.registry-hero h1 {
+  font-family: var(--display-font);
+}
+
+.site-header {
+  background:
+    linear-gradient(90deg, rgba(4, 8, 20, 0.94), rgba(10, 18, 38, 0.88)),
+    rgba(5, 9, 24, 0.88);
+  border-bottom-color: rgba(45, 212, 191, 0.12);
+}
+
+.site-nav a,
+.nav-button {
+  position: relative;
+}
+
+.site-nav a:hover,
+.nav-button:hover {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.22), rgba(45, 212, 191, 0.16));
+}
+
+.dashboard-hero {
+  position: relative;
+  overflow: hidden;
+  grid-template-columns: minmax(0, 1.28fr) 360px;
+}
+
+.dashboard-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -4rem -5rem auto;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.18), transparent 65%);
+  pointer-events: none;
+}
+
+.hero-copy {
+  padding: 34px;
+}
+
+.hero-copy h1,
+.registry-hero h1 {
+  max-width: 14ch;
+  text-wrap: balance;
+}
+
+.hero-description,
+.page-copy {
+  max-width: 68ch;
+}
+
+.hero-command-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.command-lane {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(7, 12, 23, 0.9));
+}
+
+.command-lane strong {
+  color: #f8fafc;
+  font-size: 0.98rem;
+}
+
+.command-lane span {
+  color: #b8c5d8;
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+.hero-badge {
+  border-color: rgba(45, 212, 191, 0.2);
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.hero-stat,
+.stat-card,
+.metric-card,
+.summary-item,
+.result-card,
+.compact-row,
+.wizard-helper-card,
+.similarity-item,
+.admin-row,
+.workspace-pill {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.active-skill-bar {
+  border-color: rgba(45, 212, 191, 0.28);
+  background:
+    radial-gradient(circle at top left, rgba(45, 212, 191, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(8, 14, 30, 0.96), rgba(15, 23, 42, 0.9));
+}
+
+.active-skill-bar .page-copy {
+  color: #d8e3ef;
+}
+
+.active-skill-controls .button.secondary {
+  background: rgba(8, 14, 30, 0.78);
+}
+
+.authoring-wizard {
+  border: 1px solid rgba(147, 197, 253, 0.16);
+  background: linear-gradient(180deg, rgba(8, 14, 30, 0.92), rgba(15, 23, 42, 0.92));
+}
+
+.top-stat-grid {
+  align-items: stretch;
+}
+
+.stat-card {
+  display: grid;
+  gap: 8px;
+  min-height: 128px;
+}
+
+.stat-card p {
+  color: var(--accent-cool);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.77rem;
+}
+
+.stat-card strong {
+  font-size: clamp(1.7rem, 2vw, 2.3rem);
+}
+
+.skill-card {
+  overflow: hidden;
+}
+
+.skill-card::before {
+  content: "";
+  display: block;
+  width: 64px;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-cool), var(--accent-fresh));
+  margin-bottom: 18px;
+}
+
+.skill-card-header h2,
+.panel-header h2,
+.panel-header h3 {
+  letter-spacing: -0.03em;
+}
+
+.skill-pill {
+  background: rgba(8, 14, 30, 0.85);
+}
+
+.registry-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 18px;
+  margin-bottom: 24px;
+  padding: 28px 30px;
+  border-radius: 28px;
+  border: 1px solid rgba(245, 158, 11, 0.18);
+  background:
+    radial-gradient(circle at right top, rgba(245, 158, 11, 0.14), transparent 30%),
+    linear-gradient(180deg, rgba(10, 14, 28, 0.95), rgba(15, 23, 42, 0.92));
+}
+
+.registry-hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.registry-skill-glance {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.compact-row.is-selected {
+  border-color: rgba(45, 212, 191, 0.5);
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.16), rgba(15, 23, 42, 0.78));
+}
+
+.result-pre,
+.code-textarea,
+.editor-textarea {
+  border-color: rgba(147, 197, 253, 0.14);
+}
+
+.admin-shell .admin-heading h1,
+.admin-card h2,
+.admin-card h3 {
+  letter-spacing: -0.03em;
+}
+
+.admin-metrics .metric-card {
+  min-height: 150px;
+}
+
+@media (max-width: 1100px) {
+  .hero-command-strip,
+  .registry-hero,
+  .registry-hero-metrics {
+    grid-template-columns: 1fr;
+  }
+}

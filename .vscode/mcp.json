@@ -4,6 +4,10 @@
   //
   // This file is committed so a teammate can clone the repo, open it in VS Code,
   // and get the local skills server without separate setup.
+  //
+  // Replace the placeholder identity fields below before relying on event reporting.
+  // For a per-user example that also includes SKILL_EVENTS_TOKEN, copy from
+  // users/mcp.example.json.
   "servers": {
     "skills": {
       "type": "stdio",
@@ -13,9 +17,9 @@
         "SKILLS_PATH": "${workspaceFolder}/skills",
         "PROJECT_PATH": "${workspaceFolder}",
         "CONDUCTOR_URL": "http://localhost:3000",
-        "MCP_USER_ID": "user-1",
-        "MCP_USER_NAME": "User One",
-        "MCP_USER_EMAIL": "user1@local.conductor"
+        "MCP_USER_ID": "replace-with-admin-assigned-user-id",
+        "MCP_USER_NAME": "Replace With Your Name",
+        "MCP_USER_EMAIL": "replace-with-your-email@example.com"
       }
     }
   }

@@ -14,6 +14,7 @@ const rolePermissions = {
     "skills:manage",
     "users:manage",
     "workflows:manage",
+    "workflows:use",
   ],
   USER: [
     "notifications:read",

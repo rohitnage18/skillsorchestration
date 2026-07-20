@@ -94,6 +94,11 @@ No arguments. Returns every available skill: its name, its description (parsed f
 `description:` field in that skill's `SKILL.md` frontmatter), and the names of its
 reference files, if any.
 
+Important: "available" here means filesystem skills discovered under the configured
+`SKILLS_PATH`. In this repository that is normally the local `skills/` folder, so
+`list_skills` should return the skills your team created here, not any built-in assistant
+or platform skills.
+
 ### `get_skill`
 
 One argument, `name` — the exact skill name as returned by `list_skills` (e.g.
