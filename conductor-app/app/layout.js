@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth, signOut } from "../auth.js";
 import { db } from "../lib/db";
+import SiteNavigation from "./site-navigation";
 import "./globals.css";
 
 export const metadata = {
@@ -49,45 +50,59 @@ export default async function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
+        <a className="skip-link" href="#main-content">Skip to main content</a>
         <div className="app-shell">
           <header className="site-header">
             <div className="brand-group">
-              <div className="brand-logo">CS</div>
+              <div className="brand-logo" aria-hidden="true">
+                <span>C</span>
+                <i />
+              </div>
               <div>
-                <p className="brand-name">Conductor Studio</p>
-                <p className="brand-tag">Workspace for skill imports and validation</p>
+                <p className="brand-name">Conductor</p>
+                <p className="brand-tag">Skill operations studio</p>
               </div>
             </div>
-            <nav className="site-nav">
-              <Link href="/">Home</Link>
-              <Link href="/skills">Skills</Link>
-              {session?.user?.role === "ADMIN" ? (
-                <>
-                  <Link href="/registry">Registry</Link>
-                  <Link href="/workflows">Workflows</Link>
-                  <Link href="/admin" className="nav-link-with-badge">
-                    Admin
-                    {unreadCount > 0 ? <span className="nav-badge">{unreadCount}</span> : null}
-                  </Link>
-                </>
-              ) : null}
+            <div className="rail-rule" />
+            <SiteNavigation isAdmin={session?.user?.role === "ADMIN"} unreadCount={unreadCount} />
+            <div className="rail-footer">
+              <div className="system-status">
+                <span className="status-dot" />
+                <div>
+                  <strong>Workspace online</strong>
+                  <span>All systems nominal</span>
+                </div>
+              </div>
               {session?.user ? (
-                <form
-                  action={async () => {
-                    "use server";
-                    await signOut({ redirectTo: "/" });
-                  }}
-                >
-                  <button className="nav-button" type="submit">
-                    Sign out
-                  </button>
-                </form>
+                <div className="user-menu">
+                  <div className="user-avatar" aria-hidden="true">
+                    {(session.user.name || session.user.email || "U").slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="user-meta">
+                    <strong>{session.user.name || "Workspace member"}</strong>
+                    <span>{session.user.role === "ADMIN" ? "Administrator" : "Member"}</span>
+                  </div>
+                  <form
+                    action={async () => {
+                      "use server";
+                      await signOut({ redirectTo: "/" });
+                    }}
+                  >
+                    <button className="signout-button" type="submit" aria-label="Sign out" title="Sign out">
+                      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10 17l5-5-5-5" />
+                        <path d="M15 12H3" />
+                        <path d="M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
+                      </svg>
+                    </button>
+                  </form>
+                </div>
               ) : (
-                <Link href="/login">Sign in</Link>
+                <Link className="rail-signin" href="/login">Sign in to workspace <span aria-hidden="true">-&gt;</span></Link>
               )}
-            </nav>
+            </div>
           </header>
-          <main className="app-content">{children}</main>
+          <main className="app-content" id="main-content">{children}</main>
         </div>
       </body>
     </html>

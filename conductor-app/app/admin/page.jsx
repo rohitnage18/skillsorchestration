@@ -837,10 +837,10 @@ export default async function AdminDashboardPage({ searchParams }) {
     <section className="admin-shell">
       <div className="admin-heading">
         <div>
-          <p className="eyebrow">Admin command center</p>
-          <h1>Users, approvals, audit logs, notifications, and email delivery</h1>
+          <p className="eyebrow">Command center</p>
+          <h1>Govern your skill operations from one clear view.</h1>
           <p className="muted-text">
-            Review guardrail approvals, manage team roles, inspect audit activity, and track email delivery from one place.
+            Review approvals, manage access, trace activity, and monitor delivery without losing operational context.
           </p>
         </div>
         <span className="status-pill success">Signed in as {session.user.email}</span>
