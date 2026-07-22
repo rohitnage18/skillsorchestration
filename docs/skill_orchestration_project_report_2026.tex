@@ -1,0 +1,1073 @@
+\documentclass[12pt]{report}
+
+\usepackage[hyphens]{url}
+\usepackage{graphicx}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{newpxtext,newpxmath}
+\usepackage[protrusion=true,expansion=true]{microtype}
+\usepackage[a4paper,top=27mm,bottom=27mm,left=30mm,right=25mm,headheight=15pt]{geometry}
+\usepackage{setspace}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage[table]{xcolor}
+\usepackage{caption}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{ragged2e}
+\usepackage{hyperref}
+
+\definecolor{reportnavy}{RGB}{25,55,92}
+\definecolor{reportblue}{RGB}{48,92,145}
+\definecolor{reportgray}{RGB}{92,101,112}
+\definecolor{reportrule}{RGB}{190,198,207}
+\definecolor{reportink}{RGB}{30,34,39}
+\definecolor{statusgreen}{RGB}{26,127,86}
+\definecolor{statusamber}{RGB}{169,104,12}
+\definecolor{statusred}{RGB}{166,43,43}
+\definecolor{statusblue}{RGB}{42,91,170}
+
+\newcommand{\statusgreen}[1]{\textcolor{statusgreen}{\textbf{#1}}}
+\newcommand{\statusamber}[1]{\textcolor{statusamber}{\textbf{#1}}}
+\newcommand{\statusred}[1]{\textcolor{statusred}{\textbf{#1}}}
+\newcommand{\statusblue}[1]{\textcolor{statusblue}{\textbf{#1}}}
+\newcommand{\verified}{\textbf{Verified}}
+\newcommand{\documented}{\textbf{Documented}}
+\newcommand{\notverified}{\textbf{Not verified}}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=reportnavy,
+  citecolor=reportblue,
+  urlcolor=reportblue,
+  pdftitle={Design and Implementation of a Governed Skill Orchestration Platform},
+  pdfauthor={Sanay Borhade},
+  pdfsubject={Professional project report for the Skill Orchestration Repository}
+}
+\urlstyle{same}
+
+\titleformat{\chapter}[hang]
+  {\normalfont\huge\bfseries\color{reportnavy}}
+  {\thechapter.}
+  {0.7em}
+  {}
+\titleformat{name=\chapter,numberless}[hang]
+  {\normalfont\huge\bfseries\color{reportnavy}}
+  {}
+  {0pt}
+  {}
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{reportnavy}}
+  {\thesection}
+  {0.7em}
+  {}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{reportblue}}
+  {\thesubsection}
+  {0.7em}
+  {}
+\titlespacing*{\chapter}{0pt}{-8pt}{24pt}
+\titlespacing*{\section}{0pt}{20pt}{8pt}
+\titlespacing*{\subsection}{0pt}{15pt}{6pt}
+
+\captionsetup{
+  font=small,
+  labelfont={bf,color=reportnavy},
+  textfont={color=reportink},
+  justification=centering,
+  singlelinecheck=true,
+  skip=8pt
+}
+
+\setlist[itemize]{leftmargin=*,topsep=0.45em,itemsep=0.25em,parsep=0pt}
+\setlist[enumerate]{leftmargin=*,topsep=0.45em,itemsep=0.25em,parsep=0pt}
+\renewcommand{\arraystretch}{1.16}
+\setlength{\tabcolsep}{6pt}
+\setlength{\LTpre}{0.8em}
+\setlength{\LTpost}{1.0em}
+\arrayrulecolor{reportrule}
+
+\setstretch{1.12}
+\setlength{\parindent}{1.25em}
+\setlength{\parskip}{0.18em}
+\setlength{\emergencystretch}{2em}
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+\AtBeginDocument{\color{reportink}\justifying\pagenumbering{roman}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{reportgray}\nouppercase{\leftmark}}
+\fancyfoot[C]{\small\color{reportgray}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\makeatletter
+\renewcommand{\headrule}{\hbox to\headwidth{\color{reportrule}\leaders\hrule height \headrulewidth\hfill}}
+\makeatother
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyfoot[C]{\small\color{reportgray}\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+
+% Simple environment replacements for the sections that the old
+% caltech_thesis class used to format automatically.
+\newenvironment{acknowledgements}{\chapter*{Acknowledgements}\addcontentsline{toc}{chapter}{Acknowledgements}}{}
+\renewenvironment{abstract}{\chapter*{Abstract}\addcontentsline{toc}{chapter}{Abstract}}{}
+\providecommand{\mainmatter}{\clearpage\pagenumbering{arabic}}
+
+\begin{document}
+
+% ---------- Custom title page (no location / defense boilerplate) ----------
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\LARGE \bfseries Design and Implementation of a Governed Skill Orchestration Platform \par}
+\vspace{2cm}
+{\Large Sanay Borhade \par}
+\vspace{1.5cm}
+{\large Xenvolt Technologies Private Limited \par}
+\vfill
+\end{titlepage}
+
+\begin{acknowledgements}
+I would like to express my deepest appreciation to my managers and mentors, \textbf{Rohit Nage and Santosh Fulgame}, for their consistent technical guidance, strategic oversight, and encouragement throughout my internship at \textbf{Xenvolt Technologies Private Limited}. Their expertise in artificial-intelligence systems, reusable skill design, workflow orchestration, and production-quality software engineering was instrumental in shaping the architecture and successful development of the Skill Orchestration project. Their thoughtful feedback helped me approach complex technical challenges with greater clarity, discipline, and confidence.
+
+I am also sincerely grateful to the Managing Director and the senior leadership team for fostering a culture of innovation and for providing the technical resources, computational infrastructure, and professional environment required to design, implement, and validate this project. The opportunity to work on a practical platform integrating AI-agent skills, project-context management, governance, security, and workflow automation has been an important part of my professional development as a Data Scientist.
+
+This internship experience enabled me to bridge the gap between theoretical knowledge in artificial intelligence and machine learning and the engineering demands of building reliable, secure, and maintainable real-world systems. I remain grateful to everyone at \textbf{Xenvolt Technologies Private Limited} whose support, collaboration, and trust contributed to the completion of this work.
+\end{acknowledgements}
+
+\begin{abstract}
+The Skill Orchestration Repository is a local-first platform for creating, discovering, applying, governing, and monitoring reusable instruction packages for artificial-intelligence coding agents. The platform combines a filesystem skill library, a Model Context Protocol server, a Visual Studio Code extension, a Next.js conductor application, PostgreSQL persistence through Prisma, workflow execution, approval controls, audit logging, in-application notifications, optional email delivery, and continuous-integration safeguards.
+
+This report presents the project's objectives, requirements, architecture, component design, data model, security controls, operational workflows, testing evidence, current status, risks, and recommended roadmap. The reviewed repository contains fifteen domain skills and fifty-six supporting reference guides. Repository-wide verification completed successfully: thirty-six Conductor tests and two MCP server tests passed, the optimized Conductor build completed successfully, and the Model Context Protocol server and Visual Studio Code extension compiled and bundled successfully.
+
+The platform is technically functional and demonstrates a strong foundation for governed skill reuse. Its principal remaining concerns are governance and production assurance: most skills require assigned owners and reviewers, formal promotion criteria are incomplete, hosted branch-protection settings were not verified from local evidence, and production OAuth, database, email, recovery, and multi-instance behavior require staging validation. The report therefore recommends continued development and controlled internal demonstration while withholding an unqualified production-readiness claim until those controls are completed.
+\end{abstract}
+
+\chapter*{Document Control}
+\addcontentsline{toc}{chapter}{Document Control}
+
+\begin{table}[hbt!]
+\centering
+\small
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.29\textwidth}X}
+\toprule
+Field & Value \\
+\midrule
+Document version & 1.1 \\
+Document status & Draft; internally verified, stakeholder review and approval not evidenced \\
+Report date & 22 July 2026 \\
+Evidence cut-off & 22 July 2026 working-tree review \\
+Repository & \path{skill-orchestration-repo} \\
+Reviewed branch & \path{sanay}, tracking \path{origin/sanay} \\
+Reviewed commit & \path{acf729a}, updated add user feature \\
+Working-tree scope & Software evidence at the reviewed commit; this generated report is excluded from the software-status assessment \\
+Intended audience & Repository owner, sponsor, administrators, engineers, evaluators, and handover recipients \\
+Prepared by & Sanay Borhade \\
+Approval & No human or institutional approval was evidenced during this review \\
+Distribution & Project-internal unless the repository owner approves wider distribution \\
+\bottomrule
+\end{tabularx}
+\caption{Document-control record}
+\label{tab:document-control}
+\end{table}
+
+\tableofcontents
+\listoffigures
+\listoftables
+
+\mainmatter
+
+\chapter{Introduction}
+
+\section{Background}
+
+Modern coding agents can perform complex engineering tasks, but their results depend heavily on the quality, relevance, and consistency of the instructions they receive. When expert guidance is stored only in individual prompts, chat histories, or personal notes, teams face several recurring problems:
+
+\begin{itemize}
+  \item useful instructions are repeatedly recreated;
+  \item similar tasks receive inconsistent engineering guidance;
+  \item project context is lost between sessions or contributors;
+  \item skill changes cannot be reviewed or audited reliably;
+  \item administrators lack visibility into creation, use, execution, testing, and modification events;
+  \item duplicated or overlapping skills make discovery noisy and reduce trust in the library; and
+  \item multi-step agent work is difficult to govern as a repeatable workflow.
+\end{itemize}
+
+The Skill Orchestration Repository addresses these problems by treating agent guidance as a governed engineering asset. Each reusable skill has a routing document named \path{SKILL.md}, optional reference documents, validation metadata, and a defined place in a shared library. The platform exposes the library to agents and editor users, records important activity, and provides administrative controls through a conductor application.
+
+\section{Project Objective}
+
+The project objective is to create a governed orchestration workspace that enables users and artificial-intelligence agents to:
+
+\begin{enumerate}
+  \item discover relevant reusable skills;
+  \item load verified instructions and reference material;
+  \item read and maintain the active project's shared context;
+  \item apply skills consistently to engineering work;
+  \item submit or approve controlled skill changes;
+  \item execute database-backed skills and directed workflows;
+  \item record activity in a traceable audit trail; and
+  \item operate the library through administrative dashboards and delivery safeguards.
+\end{enumerate}
+
+\section{Problem Statement}
+
+The project solves an orchestration and governance problem rather than merely a document-storage problem. A folder of prompts can provide reuse, but it does not provide reliable discovery, identity, authorization, approval, auditability, execution state, notifications, operational intelligence, or release governance. The repository therefore combines static knowledge assets with runtime services and administrative controls.
+
+\section{Scope}
+
+\subsection{Included Scope}
+
+The reviewed scope includes:
+
+\begin{itemize}
+  \item a filesystem library of skill routers and supporting references;
+  \item MCP tools for skill discovery, retrieval, and project context;
+  \item a Visual Studio Code extension for browsing, previewing, and inserting skills;
+  \item a Conductor web application for skill, workflow, registry, user, approval, audit, notification, and operational management;
+  \item a PostgreSQL data model managed through Prisma migrations;
+  \item browser authentication and external tool identity mapping;
+  \item role, permission, status, path, payload, rate, signature, and replay controls;
+  \item workflow execution using validated directed acyclic graphs;
+  \item repository verification, branch-policy, security, and pull-request automation; and
+  \item project documentation, setup guides, runbooks, context files, and roadmaps.
+\end{itemize}
+
+\subsection{Excluded or Unverified Scope}
+
+The review did not exercise a hosted production deployment, live OAuth providers, a production PostgreSQL service, a real SMTP provider, horizontal scaling, disaster recovery, formal penetration testing, or GitHub repository settings. These areas are described from source and configuration evidence but remain \notverified{} operationally.
+
+No approved budget baseline, milestone schedule, sponsor, service owner, or institutional submission metadata was available. The report does not invent those values.
+
+\section{Stakeholders}
+
+\begin{table}[hbt!]
+\centering
+\small
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.27\textwidth}X}
+\toprule
+Stakeholder & Primary interest \\
+\midrule
+Repository owner or sponsor & Scope, value, delivery risk, release approval, and project accountability \\
+Administrators & User access, approvals, audit records, notifications, library health, and operations \\
+Skill authors and reviewers & Authoring standards, trigger quality, references, versioning, ownership, and promotion \\
+Application engineers & APIs, workflows, persistence, authentication, security, testing, and maintainability \\
+Agent and editor users & Reliable discovery, clear instructions, project context, and low-friction use \\
+Platform and security owners & Configuration, secrets, availability, recovery, monitoring, and assurance \\
+Evaluators and handover recipients & Reproducible setup, architecture clarity, verification evidence, and known limitations \\
+\bottomrule
+\end{tabularx}
+\caption{Primary project stakeholders}
+\label{tab:stakeholders}
+\end{table}
+
+\chapter{Requirements and Reporting Method}
+
+\section{Functional Requirements}
+
+The principal functional requirements derived from current implementation are listed in Table~\ref{tab:functional-requirements}.
+
+\begin{longtable}{p{0.12\textwidth}p{0.78\textwidth}}
+\caption{Functional requirements}\label{tab:functional-requirements}\\
+\toprule
+ID & Requirement \\
+\midrule
+\endfirsthead
+\toprule
+ID & Requirement \\
+\midrule
+\endhead
+FR-01 & Discover every valid skill folder containing a \path{SKILL.md} router. \\
+FR-02 & Return the selected skill router and its supporting Markdown references. \\
+FR-03 & Read and update an active project's \path{CONTEXT.md} without replacing unrelated sections. \\
+FR-04 & Browse, preview, and insert skills from Visual Studio Code. \\
+FR-05 & Manage filesystem skills, registry skills, and workflow definitions through Conductor. \\
+FR-06 & Validate skill structure, trigger quality, references, state metadata, and release evidence. \\
+FR-07 & Detect similar or overlapping skills before creation. \\
+FR-08 & Preserve skill versions and support controlled restoration. \\
+FR-09 & Route non-administrator create, import, and file-change operations through an approval process. \\
+FR-10 & Record important user, skill, workflow, authorization, context, and notification activity. \\
+FR-11 & Notify administrators in the application and optionally by SMTP email. \\
+FR-12 & Create, update, disable, reactivate, and pre-provision invited users from the protected admin area. \\
+FR-13 & Execute registry skills of HTTP or server-function type. \\
+FR-14 & Execute validated workflow graphs and retain workflow-run and node-run outcomes. \\
+FR-15 & Surface library quality, workspace intelligence, branch health, release snapshots, and operational status. \\
+\bottomrule
+\end{longtable}
+
+\section{Non-Functional Requirements}
+
+\begin{longtable}{p{0.18\textwidth}p{0.72\textwidth}}
+\caption{Non-functional requirements}\label{tab:nfrs}\\
+\toprule
+Category & Requirement \\
+\midrule
+\endfirsthead
+\toprule
+Category & Requirement \\
+\midrule
+\endhead
+Security & Enforce authenticated identity, role and permission checks, safe filesystem paths, bounded input, production secret validation, signed external events, replay checks, and security headers. \\
+Reliability & Audit or email failures must not corrupt the primary skill action; workflow and notification outcomes must retain explicit status. \\
+Maintainability & Separate protocol, domain, storage, UI, and operational responsibilities; maintain independent package boundaries and lockfiles. \\
+Traceability & Record actor, action, resource, timestamp, metadata, and relevant before/after state for governed operations. \\
+Usability & Provide clear skill browsing, active-skill state, admin navigation, approval controls, and accessible status feedback. \\
+Portability & Support local operation using Node.js, npm, PostgreSQL, Visual Studio Code, and MCP-compatible clients. \\
+Testability & Provide deterministic service tests, filesystem fixtures, cross-surface contracts, compile checks, and a repository-wide verification command. \\
+Governance & Require accountable ownership, review, quality state, approval, and branch policy before formal release. \\
+\bottomrule
+\end{longtable}
+
+\section{Evidence and Reporting Method}
+
+This report follows the repository's \path{documentation-writing} and \path{project-management} skills. Evidence was evaluated in the following order:
+
+\begin{enumerate}
+  \item executable source, schema, configuration, and tests;
+  \item direct command output and reproducible verification;
+  \item current Git state and history;
+  \item maintained context, architecture, setup, and runbook documents;
+  \item checklists, roadmaps, and historical implementation reports; and
+  \item explicitly labeled inference when direct evidence was unavailable.
+\end{enumerate}
+
+Throughout this report, \verified{} identifies behavior confirmed directly from source or command output; \documented{} identifies intended behavior stated in maintained project material; and \notverified{} identifies external or production state not exercised during the review.
+
+\chapter{System Architecture}
+
+\section{Architecture Overview}
+
+The solution uses a local-first, multi-surface architecture. The filesystem skill library is the source of reusable instructions. The MCP server and Visual Studio Code extension consume that library. The Conductor application provides governance, execution, persistence, and operational visibility. PostgreSQL is the source of truth for users, registry skills, workflows, runs, audit records, notifications, and approval requests.
+
+\begin{figure}[hbt!]
+\centering
+\fbox{%
+\begin{minipage}{0.91\textwidth}
+\centering
+\textbf{User or AI Agent}\\[0.4em]
+$\downarrow$\\[-0.1em]
+\textbf{Project Context and Skill Discovery}\\
+\path{CONTEXT.md} $\longleftrightarrow$ MCP Server $\longleftrightarrow$ \path{skills/}\\[0.5em]
+$\downarrow$ \hspace{3em} $\downarrow$ \hspace{3em} $\downarrow$\\[-0.1em]
+Visual Studio Code Extension \hspace{1em} Conductor UI/API \hspace{1em} Workflow Engine\\[0.5em]
+$\downarrow$ \hspace{5em} $\downarrow$ \hspace{5em} $\downarrow$\\[-0.1em]
+External Skill Events \hspace{1em} Audit and Notifications \hspace{1em} Registry Execution\\[0.5em]
+$\downarrow$\\[-0.1em]
+\textbf{PostgreSQL / Prisma and Filesystem Operational Data}
+\end{minipage}}
+\caption{Logical architecture of the Skill Orchestration platform}
+\label{fig:architecture}
+\end{figure}
+
+\section{Repository Structure}
+
+\begin{table}[hbt!]
+\centering
+\small
+\begin{tabularx}{\textwidth}{>{\ttfamily}p{0.29\textwidth}X}
+\toprule
+Path & Responsibility \\
+\midrule
+skills/ & Shared skill routers, references, and optional state metadata \\
+skills-mcp-server/ & MCP discovery, retrieval, and project-context tools \\
+skills-vscode-extension/ & Editor tree view, preview, insertion, file watching, and event reporting \\
+conductor-app/ & Web user interface, API routes, domain services, persistence, tests, and operations \\
+admin/ & Administrative setup guidance and environment example \\
+users/ & User onboarding plus MCP and editor configuration examples \\
+docs/ & Architecture, setup, policy, runbooks, implementation reports, roadmap, and this report \\
+.github/workflows/ & Branch, pull-request, verification, security, and dependency automation \\
+CONTEXT.md & Agent-oriented current-state and changelog source \\
+PROJECT\_CONTEXT.md & Human-oriented architecture and project decision context \\
+\bottomrule
+\end{tabularx}
+\caption{Repository component structure}
+\label{tab:repo-structure}
+\end{table}
+
+\section{Primary Operating Flow}
+
+The intended agent workflow is:
+
+\begin{enumerate}
+  \item read the active project's context;
+  \item discover the available skill metadata;
+  \item select the smallest relevant skill;
+  \item read the router and required reference guidance;
+  \item apply the guidance to the project task;
+  \item update project context after meaningful architectural, status, or decision changes; and
+  \item report governed activity to Conductor when integration is configured.
+\end{enumerate}
+
+The architecture intentionally separates the guidance source from the control plane. A user can consume local skills without Conductor, while Conductor adds identity, approvals, audit, notification, registry execution, workflow execution, and operational intelligence.
+
+\section{Trust Boundaries}
+
+The major trust boundaries are:
+
+\begin{itemize}
+  \item browser session to Conductor protected routes;
+  \item MCP or editor client to the external skill-event API;
+  \item Conductor services to PostgreSQL;
+  \item Conductor filesystem operations to the shared skill library and imported workspaces;
+  \item registry execution to external HTTP endpoints or internal server functions; and
+  \item local Git inspection to hosted GitHub policy and pull-request state.
+\end{itemize}
+
+Each boundary has different evidence and controls. Local Git workflow files demonstrate intended automation but do not prove that hosted repository protection is enabled.
+
+\chapter{Skill Library and Agent Integration}
+
+\section{Skill Structure}
+
+A skill is a folder whose required entry point is \path{SKILL.md}. The router contains YAML frontmatter, trigger language, role boundaries, workflow steps, reference routing, and quality expectations. A \path{references/} directory holds deeper material that would otherwise overload the router. Optional \path{skill-state.json} metadata records tags, owner, reviewer, quality status, audit date, import state, and QA report information.
+
+The library contains fifteen skills and fifty-six reference documents in the reviewed working tree.
+
+\begin{longtable}{p{0.26\textwidth}p{0.12\textwidth}p{0.52\textwidth}}
+\caption{Skill-library coverage}\label{tab:skills}\\
+\toprule
+Skill & References & Primary scope \\
+\midrule
+\endfirsthead
+\toprule
+Skill & References & Primary scope \\
+\midrule
+\endhead
+AI engineering & 3 & Prompting, retrieval-augmented generation, tools, evaluation, safety, and agent guardrails \\
+Backend & 7 & API design, authentication, data modeling, migrations, and Go, Java, Node.js, and Python guidance \\
+Business analysis & 4 & Business requirements, business cases, gap analysis, and process modeling \\
+Data engineering & 3 & Data pipelines, modeling, quality, orchestration, and observability \\
+Delivery engineering & 2 & Continuous integration and delivery, environments, and secrets \\
+Documentation writing & 3 & Professional reports, technical documentation, evidence quality, and editorial validation \\
+Frontend & 10 & Accessibility, frameworks, performance, styling, testing, and browser engineering \\
+Mobile & 3 & Architecture, authentication, offline behavior, quality, and performance \\
+Product management & 3 & Discovery, minimum viable product shaping, prioritization, roadmaps, stories, and metrics \\
+Project management & 4 & Methodology, planning, scheduling, risks, RAID, and status reporting \\
+Quality engineering & 2 & Risk-based scenarios, QA reporting, monitoring, and release confidence \\
+Security engineering & 3 & Authentication, authorization, dependencies, secrets, and secure code review \\
+Skill authoring & 1 & Reusable skill design, scaffolding, references, triggering, and library consistency \\
+Site reliability engineering & 4 & Incidents, observability, postmortems, service levels, and error budgets \\
+System architecture & 4 & Architecture decisions, C4, data, integration, and non-functional requirements \\
+\bottomrule
+\end{longtable}
+
+\section{Skill Quality and Governance}
+
+Conductor validates skill readability, frontmatter, name consistency, body guidance, reference support, reference routing, state metadata, and prompt-trigger coverage. It also calculates a scorecard, infers tags, records freshness, stores QA reports, detects overlapping drafts, and creates file-version snapshots.
+
+The reviewed analytics show that all fifteen skills remain in draft state and none is classified as ready or stable. The documentation-writing skill is owned and validation-passed, while the other fourteen skills still require accountable ownership. This condition is a governance issue rather than evidence that the content cannot be used. It prevents the library from being described as formally approved.
+
+\section{Model Context Protocol Server}
+
+The TypeScript MCP server uses standard input/output transport and exposes four primary tools:
+
+\begin{table}[hbt!]
+\centering
+\small
+\begin{tabularx}{\textwidth}{>{\ttfamily}p{0.24\textwidth}X}
+\toprule
+Tool & Behavior \\
+\midrule
+list\_skills & Lists skill name, description, references, tags, quality status, and health status \\
+get\_skill & Returns a selected router and its reference files with file delimiters \\
+read\_context & Reads the active project's \path{CONTEXT.md} \\
+update\_context & Rewrites named context sections and appends a timestamped changelog entry \\
+\bottomrule
+\end{tabularx}
+\caption{MCP server tools}
+\label{tab:mcp-tools}
+\end{table}
+
+The server requires \path{SKILLS_PATH}; context operations also require \path{PROJECT_PATH}. Optional Conductor and external identity configuration enables event reporting. Errors are returned as structured MCP tool errors, while process logging uses standard error so the protocol stream is not corrupted.
+
+\section{Visual Studio Code Extension}
+
+The extension targets Visual Studio Code version 1.85 or newer. It provides:
+
+\begin{itemize}
+  \item an activity-bar Skills Library container;
+  \item a tree view of routers and references;
+  \item refresh, preview, insert-at-cursor, and path-configuration commands;
+  \item configurable Conductor URL and external user identity;
+  \item optional bearer-token event submission;
+  \item skill-file watching with debounced reports; and
+  \item output-channel errors instead of disruptive user pop-ups.
+\end{itemize}
+
+Cross-surface tests confirm that the MCP server and extension agree on discovered skill metadata and full skill content.
+
+\chapter{Conductor Application and Workflows}
+
+\section{Technology Stack}
+
+The Conductor application uses Next.js 16, React 19, Auth.js, Prisma 7, PostgreSQL, Zod, Nodemailer, XYFlow, TypeScript, and JavaScript. It uses the Next.js App Router for server-rendered pages and API routes.
+
+\section{User Interfaces}
+
+\begin{table}[hbt!]
+\centering
+\small
+\begin{tabularx}{\textwidth}{>{\ttfamily}p{0.28\textwidth}X}
+\toprule
+Page & Purpose \\
+\midrule
+/ & Project command-center landing page and library overview \\
+/login & Google or GitHub authentication entry point \\
+/skills & Skill browsing, filtering, active-skill state, scorecards, and authoring flow \\
+/skills/[skillName] & Skill router, references, validation, QA, versions, and actions \\
+/registry & Database-backed executable skill registry \\
+/workflows & Workflow inventory and run access \\
+/workflows/builder & Graph-oriented workflow authoring \\
+/admin & Users, approvals, audit, notifications, library intelligence, branch health, and operations \\
+\bottomrule
+\end{tabularx}
+\caption{Primary Conductor pages}
+\label{tab:pages}
+\end{table}
+
+\section{User Management}
+
+Adding users is a visible option in the Conductor admin command center. A prominent \textbf{Add user} action links to the protected user-management form. The form accepts email, optional display name, role, and personal branch, and creates an account record in the \texttt{INVITED} state.
+
+The corresponding API requires the \path{users:manage} permission, applies rate limiting and Zod validation, handles unique email or external-identity conflicts, and records a \path{user:invite} or \path{user:update} audit action. The current feature pre-provisions the account record; it does not send an onboarding email.
+
+Administrators can also approve, disable, reactivate, assign roles, map external identifiers, record preferred branches, and inspect per-user activity. User states are \texttt{INVITED}, \texttt{PENDING}, \texttt{ACTIVE}, and \texttt{DISABLED}; roles are \texttt{ADMIN} and \texttt{USER}.
+
+\section{Filesystem and Registry Skills}
+
+The system uses two related concepts:
+
+\begin{itemize}
+  \item \textbf{Filesystem skills} are instruction packages under \path{skills/} for agents and editor users.
+  \item \textbf{Registry skills} are database records representing executable HTTP or server-function actions with input and output schemas.
+\end{itemize}
+
+This distinction allows the project to govern both knowledge and execution. Documentation and user-interface labels must continue to distinguish the two concepts clearly.
+
+\section{API Surface}
+
+The reviewed application contains twenty-six API route files organized into the groups shown in Table~\ref{tab:api-groups}.
+
+\begin{longtable}{p{0.23\textwidth}p{0.66\textwidth}}
+\caption{Conductor API groups}\label{tab:api-groups}\\
+\toprule
+Area & Routes and responsibility \\
+\midrule
+\endfirsthead
+\toprule
+Area & Routes and responsibility \\
+\midrule
+\endhead
+Authentication & Auth.js provider and session handling under \path{/api/auth/[...nextauth]} \\
+Filesystem skills & List, create, inspect, edit, run, summarize, validate, and retrieve QA reports \\
+Import & Import skills into managed workspaces and initialize project context \\
+Registry & Create, read, update, delete, and execute database-backed skills \\
+Workflows & Create, read, update, delete, execute, and inspect workflow runs \\
+External events & Accept signed or token-authenticated skill activity from MCP and editor clients \\
+Approvals & Create, list, approve, and reject skill-change requests \\
+Users & List and create/update users through protected administrative operations \\
+Audit & List audit records and aggregate audit statistics \\
+Notifications & List, mark, count unread, clean up, and resend failed email notifications \\
+\bottomrule
+\end{longtable}
+
+\section{Workflow Engine}
+
+Workflows are owner-scoped, versioned JSON definitions composed of nodes and directed edges. Supported node roles include input, skill, transform, and output behavior. Execution follows these steps:
+
+\begin{enumerate}
+  \item load the workflow for the authenticated owner;
+  \item validate the workflow schema and graph;
+  \item reject cycles;
+  \item create a running workflow-run record;
+  \item calculate topological execution levels;
+  \item execute independent nodes in the same level concurrently;
+  \item resolve edge mappings into node inputs;
+  \item execute registry-skill nodes through the registry service;
+  \item persist every node input, output, error, state, and timestamp; and
+  \item finalize and audit the workflow as succeeded or failed.
+\end{enumerate}
+
+Current limitations include the absence of general retry/replay controls, explicit per-node resource budgets, comprehensive cancellation, reusable workflow templates, and production-scale execution telemetry.
+
+\chapter{Data, Audit, Notifications, and Security}
+
+\section{Data Model}
+
+The Prisma schema contains the entities summarized in Table~\ref{tab:data-model}.
+
+\begin{longtable}{p{0.24\textwidth}p{0.65\textwidth}}
+\caption{Core data entities}\label{tab:data-model}\\
+\toprule
+Entity & Responsibility \\
+\midrule
+\endfirsthead
+\toprule
+Entity & Responsibility \\
+\midrule
+\endhead
+User & Browser and external identity, role, lifecycle status, branch preference, activity timestamp, and ownership relations \\
+Skill & Registry skill definition, owner, execution type, endpoint or function configuration, schemas, and metadata \\
+Workflow & Owner-scoped name, description, JSON definition, version, and publication state \\
+WorkflowRun & Workflow execution state, user, input, output, error, and timing \\
+NodeRun & Per-node execution state, optional registry-skill link, data, errors, and timing \\
+AuditLog & Actor, action, resource, changes, metadata, and creation time \\
+Notification & In-application state, email delivery state, retry/error fields, and optional audit linkage \\
+SkillChangeRequest & Requester, reviewer, change type, payload, result, decision, and review timing \\
+\bottomrule
+\end{longtable}
+
+Eleven migration directories capture the database's evolution from the baseline through audit logging, notifications, skill-change requests, email-delivery guardrails, user lifecycle states, preferred branch, last-seen state, external identity, and invited-user support.
+
+\section{Event and Audit Flow}
+
+The implementation recognizes skill listing, reading, creation, import, preview, use, testing, execution, and file-update events. It also records workflow, user, context, role-denial, approval, and operational actions.
+
+An accepted external event is validated, attributed to an active user, rate controlled, optionally signature checked, and written into the audit/notification path. Notification or email failures are isolated from the primary action so that an otherwise successful skill operation is not rolled back solely because an administrator message could not be delivered.
+
+The top-level README now lists all nine external skill events accepted by the current API, including the MCP listing and reading events. Internal Conductor actions use additional audit event names that are not part of the external request contract.
+
+\section{Notifications}
+
+Notifications are created for administrative recipients stored in the database. The data model records unread/read state and email-delivery state, including pending, sent, failed, skipped, and not-configured outcomes. It also stores retry count, last attempt, error text, and sent time.
+
+SMTP is optional. When it is absent, audit logs and in-application notifications remain available. Email failures are logged, and administrators can retry eligible failed notifications from the protected interface.
+
+\section{Authentication and Authorization}
+
+Browser authentication uses Auth.js with Google and GitHub provider support. External MCP and editor identities are mapped through a unique administrator-managed external identifier. Protected operations use named permissions for audit, notifications, registry skills, filesystem skills, users, and workflows.
+
+Important controls include:
+
+\begin{itemize}
+  \item role and account-status checks;
+  \item explicit permission checks on sensitive routes;
+  \item audit logging for denied authorization and role changes;
+  \item administrator approval for new browser users;
+  \item rejection of unknown, pending, or disabled external users; and
+  \item ownership checks on workflows, notifications, and user-scoped resources.
+\end{itemize}
+
+\section{External Event Security}
+
+External clients can be protected through a bearer secret and HMAC signature. The implementation supports timing-safe comparison, timestamp freshness, replay-event detection, bounded metadata, and rate limiting. Tests verify valid signatures and rejection of stale or modified payloads.
+
+Rate-limit and replay state currently resides in process-local JavaScript maps. That design is appropriate for local development but does not coordinate across multiple application instances and resets on restart. A distributed store or gateway-level control is required before horizontal production scaling.
+
+\section{Filesystem and Production Guardrails}
+
+Filesystem controls normalize skill names, prevent path traversal, restrict editable files to \path{SKILL.md} and \path{references/*.md}, limit content size, and sanitize search input. Notification messages avoid sending complete file contents.
+
+Production configuration validation checks authentication URLs, non-placeholder secrets, administrator configuration, and event credentials. Security headers are applied through the application proxy or middleware layer. Live production operation of these controls remains \notverified{}.
+
+\chapter{Testing, Delivery, and Operations}
+
+\section{Verification Strategy}
+
+The root command \path{npm run verify:repo} executes the complete repository verification stack:
+
+\begin{enumerate}
+  \item structural validation of every catalog skill;
+  \item Conductor automated tests;
+  \item Prisma client generation;
+  \item optimized Next.js production build;
+  \item MCP server automated tests and TypeScript build;
+  \item Visual Studio Code extension TypeScript compile check; and
+  \item Visual Studio Code extension bundle build.
+\end{enumerate}
+
+\section{Verification Results}
+
+The final verification performed during this review completed successfully.
+
+\begin{table}[hbt!]
+\centering
+\begin{tabular}{ll}
+\toprule
+Verification stage & Result \\
+\midrule
+Skill catalog structural validation & 15 passed; 14 governance warnings \\
+Conductor automated tests & 36 passed, 0 failed, 0 skipped \\
+MCP server automated tests & 2 passed, 0 failed, 0 skipped \\
+Prisma client generation & Passed \\
+Next.js optimized build & Passed \\
+Next.js TypeScript checking & Passed \\
+MCP server TypeScript build & Passed \\
+Extension compile check & Passed \\
+Extension bundle & Passed \\
+\bottomrule
+\end{tabular}
+\caption{Repository verification result}
+\label{tab:verification}
+\end{table}
+
+\section{Automated Coverage}
+
+The test suite covers:
+
+\begin{itemize}
+  \item primary page and source-contract smoke checks;
+  \item protected Add user discoverability and API authorization;
+  \item workflow permission and ownership wiring;
+  \item skill data, insights, summary, validation, and QA report flows;
+  \item authoring wizard behavior and duplicate detection;
+  \item file-version restore and approval processing;
+  \item email configuration and notification mapping;
+  \item relationship graphs, workspace intelligence, release snapshots, and demo seeding;
+  \item rate limiting, replay protection, signatures, stale timestamps, and modified payloads;
+  \item filesystem create, import, and file-update audit events;
+  \item registry execution audit events; and
+  \item metadata and content consistency across Conductor, MCP, and the editor extension.
+\end{itemize}
+
+\section{Testing Limitations}
+
+Remaining quality work includes:
+
+\begin{itemize}
+  \item browser-driven end-to-end authentication, approval, user, notification, and workflow tests;
+  \item integration tests against a real PostgreSQL service;
+  \item live SMTP and OAuth validation;
+  \item load, concurrency, restart, recovery, and multi-instance testing;
+  \item accessibility automation and manual assistive-technology evaluation;
+  \item hosted dependency/security workflow result review; and
+  \item formal penetration and backup/restore testing.
+\end{itemize}
+
+\section{Continuous Integration and Branch Governance}
+
+The repository contains six GitHub Actions workflow files covering branch pushes, personal-branch policy, direct-main protection, pull requests into main, full repository verification, and security checks.
+
+The intended model is one personal working branch per user, automatic validation on push, a pull request targeting \path{main}, required checks, human review, and manual merge. The reviewed branch is \path{sanay}, tracking \path{origin/sanay}. Local source cannot prove whether GitHub rulesets and required checks are enabled in repository settings.
+
+\section{Operations and Runbooks}
+
+The Conductor operations layer provides:
+
+\begin{itemize}
+  \item local repository branch, upstream, ahead/behind, workflow-file, and dirty-tree health;
+  \item skill dependency and overlap relationships;
+  \item imported-workspace context freshness, risk, linked skills, and recommendations;
+  \item release snapshot creation and listing;
+  \item demo workspace seeding; and
+  \item audit, notification, delivery, approval, user, and skill-quality dashboards.
+\end{itemize}
+
+The repository also supplies architecture and setup documentation plus operator guidance. Formal service-level objectives, on-call ownership, recovery-time targets, and a production escalation roster have not yet been established.
+
+\chapter{Current Status, Risks, and Recommendations}
+
+\section{Status Definitions}
+
+This report uses the following status definitions:
+
+\begin{itemize}
+  \item \statusgreen{Green}: verified on track with no material intervention required;
+  \item \statusamber{Amber}: a material concern exists but has a credible internal recovery action;
+  \item \statusred{Red}: off track or unapproved and requiring intervention or decision; and
+  \item \statusblue{Blue}: complete and verified.
+\end{itemize}
+
+No approved schedule or budget baseline exists. Those dimensions cannot be objectively reported as Green.
+
+\section{Dimension-Level Assessment}
+
+\begin{longtable}{p{0.25\textwidth}p{0.13\textwidth}p{0.52\textwidth}}
+\caption{Current project status}\label{tab:status}\\
+\toprule
+Dimension & Status & Evidence and interpretation \\
+\midrule
+\endfirsthead
+\toprule
+Dimension & Status & Evidence and interpretation \\
+\midrule
+\endhead
+Technical build & \statusgreen{Green} & All component builds and compile checks passed. \\
+Automated testing & \statusgreen{Green} & Thirty-eight automated tests passed: thirty-six for Conductor and two for the MCP server, with no failures or skips. \\
+Architecture & \statusgreen{Green} & Library, protocol, editor, control plane, services, persistence, and operations are separated clearly. \\
+Functional breadth & \statusgreen{Green} & Skills, context, approvals, audit, notification, registry, workflows, users, and operations are implemented. \\
+Skill governance & \statusred{Red} & No skill is ready or stable; most skills still require accountable ownership and review. \\
+Security assurance & \statusamber{Amber} & Strong source controls exist, but production and multi-instance validation remain incomplete. \\
+Documentation & \statusamber{Amber} & Core README, context, event-contract, runtime-version, and validation guidance is reconciled; historical reports and roadmaps still require periodic drift review. \\
+CI/CD source & \statusgreen{Green} & Six workflows and a complete verification command exist. \\
+Hosted enforcement & \statusamber{Amber} & GitHub rulesets and recent hosted results were not observed. \\
+Release readiness & \statusamber{Amber} & Repository verification passes, but governance and production-assurance evidence remain incomplete. \\
+Schedule and budget & \statusamber{Amber} & Approved baselines and variance thresholds are absent. \\
+Ownership & \statusred{Red} & Sponsor, service owner, and most skill owners/reviewers are not assigned. \\
+\bottomrule
+\end{longtable}
+
+The overall project assessment is \statusamber{Amber}. Continued engineering and internal demonstration are reasonable; a formal production-readiness claim is not yet supported.
+
+\section{Current Delivery State}
+
+The reviewed branch includes the protected Add user workflow, invited-user creation and conflict handling, audit integration, related user-interface changes, supporting tests, dependency updates, and the documentation-writing skill. This review adds repository-wide skill validation and reconciles authentication, approval, event, runtime-version, roadmap, and agent-validation guidance. The complete repository verification command passes against this source snapshot.
+
+The LaTeX report itself is a generated deliverable outside the reviewed software commit. It should be submitted through the repository's normal review process after stakeholder-specific title-page information and approval status are confirmed.
+
+\section{Risk, Assumption, Issue, and Dependency Register}
+
+\begin{longtable}{p{0.07\textwidth}p{0.17\textwidth}p{0.34\textwidth}p{0.32\textwidth}}
+\caption{Prioritized RAID register}\label{tab:raid}\\
+\toprule
+ID & Type & Entry and impact & Response or validation \\
+\midrule
+\endfirsthead
+\toprule
+ID & Type & Entry and impact & Response or validation \\
+\midrule
+\endhead
+R1 & Critical risk & Draft and unowned skills may be treated as formally approved. & Assign owners/reviewers, define promotion criteria, validate, and publish approved status. \\
+R2 & High risk & Process-local rate and replay state will not coordinate across replicas. & Move state to a distributed store or gateway before horizontal scaling. \\
+R3 & High risk & Documented branch policy may not be enforced in hosted settings. & Verify GitHub rulesets and capture required-check evidence. \\
+R4 & High risk & Documentation drift can produce incorrect operation or setup. & Reconcile README, context files, event tables, migration notes, and roadmap state. \\
+R5 & High risk & OAuth, SMTP, database, and recovery behavior may differ in production. & Complete staging and recovery acceptance tests. \\
+R6 & High risk & Workflow execution lacks complete timeout, retry, cancellation, and resource policies. & Define budgets and add failure-path controls and tests. \\
+I1 & Issue & Formal stakeholder review and release approval are not evidenced. & Assign an approver, record review findings, and capture the final release decision. \\
+I2 & Issue & No skill currently satisfies ready/stable governance. & Complete metadata, QA, review, and promotion for priority skills. \\
+I3 & Issue & Fourteen skills pass structurally but still emit governance metadata warnings. & Assign owners and reviewers, record tags, and promote states only after review evidence exists. \\
+A1 & Assumption & PostgreSQL is intended as the production persistence layer. & Confirm hosting, backup, encryption, pooling, and restore approach. \\
+A2 & Assumption & Google and GitHub are approved identity providers. & Confirm organization policy, callbacks, and account-linking rules. \\
+A3 & Assumption & Failed email delivery must not block primary actions. & Confirm this behavior against compliance and operational requirements. \\
+D1 & Dependency & Node.js, npm, PostgreSQL, Git, and package registries are required. & Maintain supported versions, lockfiles, and installation guidance. \\
+D2 & Dependency & OAuth, SMTP, GitHub, and external client configuration affect complete operation. & Maintain environment-specific setup and validation checklists. \\
+\bottomrule
+\end{longtable}
+
+\section{Recommended Delivery Plan}
+
+\subsection{Phase 1: Release Hygiene and Ownership}
+
+\begin{enumerate}
+  \item name the sponsor, product owner, technical owner, delivery owner, and operational owner;
+  \item submit the report and any subsequent source changes through the normal pull-request review process;
+  \item confirm GitHub branch protection and required checks;
+  \item assign owners and reviewers to all skills; and
+  \item reconcile documentation against current source and tests.
+\end{enumerate}
+
+Completion evidence should include named roles in the charter, a reviewed pull request for subsequent changes, successful hosted checks, a captured repository ruleset, and updated skill state.
+
+\subsection{Phase 2: Skill Governance}
+
+\begin{enumerate}
+  \item define objective draft, reviewed, approved, production-ready, deprecated, and archived states;
+  \item run validation and generate QA reports for every skill;
+  \item remediate warnings in highest-risk skills first;
+  \item require owner and reviewer metadata for new skills; and
+  \item add a bulk governance remediation workflow to Conductor.
+\end{enumerate}
+
+Security, quality, delivery, project management, and system architecture skills should be prioritized because they influence the assurance of downstream engineering work.
+
+\subsection{Phase 3: Production Assurance}
+
+\begin{enumerate}
+  \item create a production-like staging environment;
+  \item validate PostgreSQL migrations, OAuth, SMTP, external events, and account lifecycle;
+  \item add browser end-to-end coverage for critical journeys;
+  \item replace process-local coordination state where required;
+  \item add workflow execution timeouts, retry policy, cancellation, and resource controls;
+  \item test backup and restore; and
+  \item document service levels, monitoring, incident response, and escalation ownership.
+\end{enumerate}
+
+\subsection{Phase 4: Deeper Orchestration and Adoption}
+
+\begin{enumerate}
+  \item add reusable workflow templates and governed post-change check chains;
+  \item add approval gates for high-risk changes;
+  \item add workflow failure analytics and replay controls;
+  \item integrate GitHub pull-request and required-check status;
+  \item add imported-workspace lifecycle dashboards; and
+  \item publish contributor, handover, and deprecation standards.
+\end{enumerate}
+
+\section{Proposed Success Measures}
+
+\begin{table}[hbt!]
+\centering
+\small
+\begin{tabularx}{\textwidth}{X>{\raggedleft\arraybackslash}p{0.28\textwidth}}
+\toprule
+Measure & Proposed target \\
+\midrule
+Protected pull-request verification & 100 percent pass before merge \\
+Skills with named owner and reviewer & 100 percent \\
+Skills in approved or reviewed state & At least 90 percent before formal release \\
+Critical security findings & Zero open at release \\
+Overdue high-risk findings & Zero \\
+Context freshness for active imported workspaces & Within 30 days and after material architectural change \\
+Approval turnaround & Team-defined target, such as one working day \\
+Database and configuration recovery test & Demonstrated at least quarterly \\
+Production authentication, event, and notification acceptance & Completed before release \\
+\bottomrule
+\end{tabularx}
+\caption{Proposed project success measures}
+\label{tab:success-measures}
+\end{table}
+
+\section{Decisions Required}
+
+The project owner must resolve the following decisions:
+
+\begin{enumerate}
+  \item Who is the sponsor and final release approver?
+  \item Who owns Conductor in production?
+  \item Who owns and reviews each skill?
+  \item What quality state is mandatory before a skill is presented as production-ready?
+  \item Is the target local team use or hosted multi-user production?
+  \item Are all documented GitHub protections enabled?
+\end{enumerate}
+
+\chapter{Conclusion}
+
+The Skill Orchestration Repository demonstrates a coherent approach to governing reusable agent guidance and executable workflows. Its verified strengths are separation of concerns, broad skill coverage, practical MCP and editor integration, a substantial administrative control plane, explicit approval and audit mechanisms, workflow persistence, security guardrails, cross-surface contract testing, and a repository-wide verification process that currently passes.
+
+The project's principal constraint is governance and operational maturity. All skills remain draft, most lack accountable ownership and review, and no skill is presently classified as ready or stable. Hosted policy enforcement was not observed, formal stakeholder approval is not evidenced, and production identity, email, database, recovery, and scaling behavior remain unverified.
+
+The evidence supports continued development and internal demonstration. Formal production release should follow a focused hardening phase covering ownership, skill promotion, clean pull-request delivery, documentation reconciliation, hosted policy confirmation, staging acceptance, distributed coordination where necessary, recovery testing, and operational accountability.
+
+Completing those actions would move the repository from a technically successful orchestration control plane to a professionally governed and supportable engineering platform.
+
+\appendix
+
+\chapter{Repository Inventory}
+
+\begin{table}[hbt!]
+\centering
+\begin{tabular}{lr}
+\toprule
+Inventory measure & Count \\
+\midrule
+Domain skills & 15 \\
+Skill reference guides & 56 \\
+Skill files, including state metadata & 74 \\
+Conductor API route files & 26 \\
+Conductor automated test files & 7 \\
+Automated tests executed & 38 \\
+Prisma migration directories & 11 \\
+GitHub Actions workflow files & 6 \\
+\bottomrule
+\end{tabular}
+\caption{Reviewed repository inventory}
+\label{tab:inventory}
+\end{table}
+
+\chapter{Primary Commands}
+
+\begin{verbatim}
+# List skills
+npm run list:skills
+
+# Validate only the skill catalog
+npm run validate:skills
+
+# Verify the full repository
+npm run verify:repo
+
+# Run and build Conductor
+npm --prefix conductor-app run dev
+npm --prefix conductor-app test
+npm --prefix conductor-app run build
+
+# Prepare the database client and migrations
+npm --prefix conductor-app run prisma:generate
+npm --prefix conductor-app run prisma:migrate
+
+# Build and run the MCP server
+npm --prefix skills-mcp-server run build
+npm --prefix skills-mcp-server start
+
+# Check and build the Visual Studio Code extension
+npm --prefix skills-vscode-extension run compile-check
+npm --prefix skills-vscode-extension run build
+\end{verbatim}
+
+\chapter{Environment Configuration Categories}
+
+\begin{longtable}{p{0.30\textwidth}p{0.60\textwidth}}
+\caption{Environment configuration categories}\label{tab:environment}\\
+\toprule
+Variable or category & Purpose \\
+\midrule
+\endfirsthead
+\toprule
+Variable or category & Purpose \\
+\midrule
+\endhead
+DATABASE\_URL & PostgreSQL connection information \\
+AUTH\_SECRET & Auth.js signing and encryption secret \\
+AUTH\_URL and trust settings & Browser authentication host configuration \\
+OAuth client configuration & Google and GitHub provider credentials \\
+ADMIN\_EMAILS & Administrative bootstrap or allow-list behavior \\
+SKILL\_EVENTS\_TOKEN & External event bearer credential \\
+SKILL\_EVENTS\_HMAC\_SECRET & External event signature credential \\
+SMTP configuration & Host, port, security, username, password, and sender \\
+SKILLS\_PATH & MCP skill-library root \\
+PROJECT\_PATH & MCP active-project root \\
+CONDUCTOR\_URL & Optional MCP or editor event destination \\
+External user identity & MCP/editor identifier, email, and display name \\
+\bottomrule
+\end{longtable}
+
+No real secret values are included in this report. Deployment documentation must use safe placeholders and environment-specific secret management.
+
+\chapter{Evidence Ledger}
+
+\begin{longtable}{p{0.29\textwidth}p{0.31\textwidth}p{0.14\textwidth}p{0.16\textwidth}}
+\caption{Material evidence ledger}\label{tab:evidence}\\
+\toprule
+Claim & Primary evidence & Confidence & Treatment \\
+\midrule
+\endfirsthead
+\toprule
+Claim & Primary evidence & Confidence & Treatment \\
+\midrule
+\endhead
+Repository builds and tests pass & Final \path{npm run verify:repo} output & High & Verified \\
+Library contains fifteen skills and fifty-six references & Filesystem inventory and discovery command & High & Verified \\
+Documentation-writing skill validates & Conductor skill-validation output & High & Verified \\
+Add user is a protected Conductor option & Admin UI, user API, authorization, and automated tests & High & Verified at reviewed commit \\
+GitHub workflows define branch and verification policy & Workflow source files & High & Verified as configuration \\
+GitHub settings enforce the policy & Hosted settings unavailable locally & Low & Not verified \\
+OAuth, SMTP, and PostgreSQL operate in production & Source and configuration only & Low & Not verified \\
+Overall project status is Amber & Dimension assessment from evidence and missing baselines & Medium & Inferred assessment \\
+Roadmap capabilities will be delivered & Maintained roadmap and planning documents & Medium as intent & Documented plan \\
+\bottomrule
+\end{longtable}
+
+\chapter{Glossary}
+
+\begin{longtable}{p{0.23\textwidth}p{0.67\textwidth}}
+\caption{Project glossary}\label{tab:glossary}\\
+\toprule
+Term & Meaning \\
+\midrule
+\endfirsthead
+\toprule
+Term & Meaning \\
+\midrule
+\endhead
+AI agent & Software assistant that uses instructions and tools to perform project work \\
+Skill & Filesystem instruction package centered on \path{SKILL.md}, unless registry skill is stated \\
+Registry skill & Database-backed executable HTTP or server-function action \\
+MCP & Model Context Protocol used to expose skills and context operations \\
+Conductor & Next.js control-plane application for governance and orchestration \\
+Context & Maintained \path{CONTEXT.md} project state and changelog \\
+RAG & Red, Amber, and Green project-health classification; Blue can identify completed work \\
+RAID & Risks, Assumptions, Issues, and Dependencies or Decisions \\
+HMAC & Hash-based Message Authentication Code for event integrity and authenticity \\
+SMTP & Simple Mail Transfer Protocol used for optional email notification \\
+DAG & Directed acyclic graph used for workflow dependencies \\
+Working tree & Checked-out Git files, including uncommitted changes \\
+\bottomrule
+\end{longtable}
+\end{document}

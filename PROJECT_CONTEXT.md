@@ -71,15 +71,21 @@ Each event creates an audit log and admin notification. If SMTP is configured, a
 | Skill stability scorecards | updated | The conductor app now assigns each skill a score, grade, and stability lane, and admin analytics highlight stable skills versus watch/at-risk skills |
 | Verification layer | updated | The repo now has conductor smoke tests, cross-surface contract tests, a root `npm run verify:repo` command, and a repository-wide GitHub Actions verification workflow |
 | Context flow | partial | MCP tools support reading/updating `CONTEXT.md`; strict before/after enforcement is not implemented yet |
-| Security/guardrails | partial | Skill create/import/edit and admin cleanup routes require an admin database user; full auth and approval workflows are later-phase work |
+| Security/guardrails | updated | OAuth sessions, role/status permissions, non-admin skill-change approvals, signed external events, replay protection, and rate limiting are implemented; production staging and multi-instance coordination remain |
 
 ## Open Questions / Blockers
 
-- Decide the real authentication/session source that replaces temporary `x-user-id`, browser `localStorage`, and `dev-user` fallback behavior.
 - Decide whether preview/read events are too noisy for admin email in production.
-- Decide whether strict admin approval should block edits, or just notify admins after edits.
+- Decide which shared store or gateway will coordinate rate limiting and replay protection in multi-instance deployments.
+- Assign accountable owners and reviewers, then define promotion criteria for every skill.
 
 ## Changelog
+
+### 2026-07-22
+
+Reconciled repository guidance with the implemented OAuth, approval, admin, event-security,
+and verification flows. Raised the documented Conductor Node.js minimum to the version
+required by Next.js 16 and refreshed the remaining hardening roadmap.
 
 ### 2026-07-09
 
