@@ -6,34 +6,48 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
   pool?: Pool;
 };
+let localPrisma = globalForPrisma.prisma;
+let localPool = globalForPrisma.pool;
 
-const connectionString = process.env.DATABASE_URL;
+export const db = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    const client = getDbClient();
+    const value = Reflect.get(client, property, client);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
 
-if (!connectionString) {
-  throw new Error("DATABASE_URL is required.");
-}
+function getDbClient() {
+  if (localPrisma) {
+    return localPrisma;
+  }
 
-const schema = getSchemaFromConnectionString(connectionString);
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is required when a database operation is attempted.");
+  }
 
-const pool =
-  globalForPrisma.pool ??
-  new Pool({
-    connectionString,
-    ...(schema ? { options: `-c search_path=${schema}` } : {}),
-  });
-
-const adapter = new PrismaPg(pool, schema ? { schema } : undefined);
-
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+  const schema = getSchemaFromConnectionString(connectionString);
+  const pool =
+    localPool ??
+    new Pool({
+      connectionString,
+      ...(schema ? { options: `-c search_path=${schema}` } : {}),
+    });
+  const adapter = new PrismaPg(pool, schema ? { schema } : undefined);
+  const client = new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
+  localPrisma = client;
+  localPool = pool;
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = db;
-  globalForPrisma.pool = pool;
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = client;
+    globalForPrisma.pool = pool;
+  }
+
+  return client;
 }
 
 function getSchemaFromConnectionString(value: string) {
