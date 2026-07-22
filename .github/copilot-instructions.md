@@ -52,7 +52,16 @@ person's AI session won't otherwise know it changed.
 
 ## Build and validation
 
-<!-- Fill this in once this becomes a real, running project: how to install
-dependencies, run the dev server, run tests, and any commands that commonly fail or
-need a specific order. Keeping this current measurably improves agent reliability
-in this repo, per GitHub's own guidance on this file. -->
+Use Node.js 20.9 or newer; GitHub Actions uses Node.js 24. Install dependencies in
+`conductor-app`, `skills-mcp-server`, and `skills-vscode-extension` with `npm ci`.
+
+Run the complete repository check from the repository root:
+
+```bash
+npm run verify:repo
+```
+
+This validates every catalog skill, then runs the Conductor tests and production build,
+MCP tests/build, and VS Code extension compile/bundle checks. On Windows PowerShell systems that block `npm.ps1`,
+run `npm.cmd run verify:repo`. The client-import tests create temporary folders under
+`.agents/skills` and `.claude/skills`, so those locations must be writable.

@@ -186,6 +186,8 @@ Supported event types:
 
 | Event | Meaning |
 |---|---|
+| `skill:list` | An MCP client listed the available skills. |
+| `skill:read` | An MCP client retrieved a skill. |
 | `skill:create` | A new filesystem skill was created. |
 | `skill:import` | A skill was imported into a project workspace. |
 | `skill:preview` | A user previewed a skill or reference file. |
@@ -198,7 +200,7 @@ Each accepted event:
 
 1. Creates an `AuditLog` row.
 2. Creates `Notification` rows for admin users.
-3. Sends SMTP email to admin users if SMTP is configured.
+3. Sends SMTP email to admin users if SMTP is configured, except for intentionally noisy `skill:list` events.
 4. Does not break the user action if notification/email delivery fails.
 
 ## Notification Architecture
@@ -229,6 +231,37 @@ SMTP_PASSWORD=your-password
 FROM_EMAIL=noreply@example.com
 ```
 
+## Import Skills Into Codex or Claude Code
+
+The skill detail page can install a filesystem skill directly into the current repository:
+
+- Codex project skills: `.agents/skills/<skill-name>/SKILL.md`
+- Claude Code project skills: `.claude/skills/<skill-name>/SKILL.md`
+- Conductor workspace copies: `conductor-app/imported-workspaces/<workspace-name>/SKILL.md`
+
+Choose the client under **Install for**, then select **Request import**. Admin users install
+immediately. Other users create a pending approval request; approval installs into the
+originally selected client target.
+
+For imports requested inside Codex or Claude Code chat, call the MCP tool:
+
+```text
+import_skill(name: "backend", client: "codex")
+import_skill(name: "frontend", client: "claude-code")
+```
+
+The tool returns a confirmation message for the chat, including the installation path and
+invocation:
+
+- Codex: `$backend`
+- Claude Code: `/frontend`
+
+Existing client installations are not overwritten. Codex normally detects skill changes
+automatically; start a new chat or restart Codex if needed. Claude Code watches existing
+skill directories live; restart it if the top-level skill directory was created after the
+session started.
+
+
 ## Admin Protection
 
 Basic admin protection is implemented for skill tampering.
@@ -236,7 +269,7 @@ Basic admin protection is implemented for skill tampering.
 Admin-only actions:
 
 - Create a filesystem skill.
-- Import a skill into a workspace.
+- Import a skill into a Conductor workspace, Codex project, or Claude Code project.
 - Edit `SKILL.md`.
 - Edit `references/*.md`.
 - View/purge audit logs.
@@ -263,16 +296,17 @@ Current identity mechanism:
 - A user cannot mark another user's notification as read.
 - Audit/email failures do not block the primary skill action.
 
-## Guardrails Still Later
+## Remaining Guardrail Work
 
-These are intentionally not fully implemented yet:
+Authentication, role-based authorization, non-admin skill-change approvals, signed
+external events, replay protection, rate limiting, and admin audit/notification views
+are implemented. The remaining production-hardening work is:
 
-- Real authentication provider.
-- Approval workflow before non-admin edits.
 - Fine-grained roles beyond `ADMIN` and `USER`.
-- Rate limiting for noisy preview events.
-- Admin dashboard UI for audit logs and notifications.
-- Notification delivery retry queue.
+- Distributed rate-limit and replay state for multi-instance deployments.
+- Durable notification delivery retries and delivery history.
+- Browser-driven end-to-end coverage for OAuth, approvals, and admin workflows.
+- Production-like staging validation for PostgreSQL, OAuth, SMTP, backup, and restore.
 
 ## Setup
 
@@ -281,7 +315,7 @@ These are intentionally not fully implemented yet:
 Install:
 
 - Git
-- Node.js 18 or newer
+- Node.js 20.9 or newer (Node.js 24 is used in CI)
 - npm
 - PostgreSQL
 - Python 3.10+ if you need Python helper scripts/tests
@@ -428,6 +462,12 @@ Run the full repository verification suite:
 npm run verify:repo
 ```
 
+Validate every skill without running component builds:
+
+```bash
+npm run validate:skills
+```
+
 Build conductor app:
 
 ```bash
@@ -522,9 +562,9 @@ Check:
 
 Next major steps:
 
-1. Add real authentication/session handling.
-2. Add admin dashboard pages for audit logs and notifications.
-3. Add filters for event type, user, skill, source, and date.
-4. Add notification badge and mark-all-read UI.
-5. Add optional retry/delivery log support for failed SMTP sends.
-6. Add tests for notification mapping and skill event flows.
+1. Assign owners and reviewers, validate every skill, and promote priority skills out of draft.
+2. Add browser end-to-end tests for authentication, approval, user, notification, and workflow journeys.
+3. Validate PostgreSQL migrations, OAuth, SMTP, backup, and restore in a production-like staging environment.
+4. Move process-local rate-limit and replay state to shared infrastructure before horizontal scaling.
+5. Add workflow timeout, retry, cancellation, and resource-budget controls.
+6. Add durable notification delivery retries and operational delivery history.

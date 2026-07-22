@@ -1,4 +1,4 @@
-import { importSkill } from "../../../lib/skillStorage.js";
+import { importSkill, installSkillForClient } from "../../../lib/skillStorage.js";
 import { getErrorStatus, requirePermission } from "../../../lib/auth.js";
 import { normalizeSkillNameInput } from "../../../lib/inputSafety.js";
 import { buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
@@ -21,10 +21,23 @@ export async function POST(req) {
     });
     const body = await req.json();
     const skillName = normalizeSkillNameInput(body.skillName);
-    const targetName = normalizeSkillNameInput(body.targetName);
+    const client = String(body.client ?? "workspace");
+    if (!["workspace", "codex", "claude-code"].includes(client)) {
+      return json({ error: "Import client must be workspace, codex, or claude-code." }, 400);
+    }
 
-    const destination = await importSkill(skillName, targetName, user.id);
-    return json({ path: destination });
+    if (client === "workspace") {
+      const targetName = normalizeSkillNameInput(body.targetName);
+      const destination = await importSkill(skillName, targetName, user.id);
+      return json({
+        client,
+        path: destination,
+        message: `Skill "${skillName}" imported into Conductor workspace "${destination}".`,
+      });
+    }
+
+    const result = await installSkillForClient(skillName, client, user.id);
+    return json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to import skill";
     return json({ error: message }, getErrorStatus(error, 400));

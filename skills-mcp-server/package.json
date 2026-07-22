@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc && shx chmod +x build/index.js",
     "watch": "tsc --watch",
+    "test": "npm run build && node --test build/install.test.js",
     "start": "node build/index.js"
   },
   "files": [

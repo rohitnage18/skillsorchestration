@@ -26,6 +26,7 @@ import {
   seedDemoWorkspaceData,
 } from "../../lib/operations.js";
 import { logAction, resendNotificationEmail } from "../../features/logging/server-functions";
+import InviteUserForm from "./InviteUserForm";
 
 function formatDate(value) {
   return new Intl.DateTimeFormat("en", {
@@ -52,7 +53,7 @@ function formatPayload(payload) {
   }
 
   if (payload.type === "SKILL_IMPORT") {
-    return `Import ${payload.skillName} to ${payload.targetName}`;
+    return `Import ${payload.skillName} to ${payload.client || "workspace"}:${payload.targetName}`;
   }
 
   if (payload.type === "SKILL_FILE_UPDATE") {
@@ -72,6 +73,16 @@ function userStatusClass(status) {
   if (status === "ACTIVE") return "success";
   if (status === "DISABLED") return "danger";
   return "neutral";
+}
+
+function getUserInitials(user) {
+  const source = String(user.name || user.email || "Team member").trim();
+  const parts = source.split(/\s+|@/).filter(Boolean);
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function canResendEmail(status, auditLogId) {
@@ -813,6 +824,8 @@ export default async function AdminDashboardPage({ searchParams }) {
     summary[group.status] = group._count.status;
     return summary;
   }, {});
+  const activeUserCount = userStatusSummary.ACTIVE || 0;
+  const branchReadyUserCount = users.filter((user) => Boolean(user.preferredBranch)).length;
   const invitedUserCount = userStatusSummary.INVITED || 0;
   const pendingUserCount = userStatusSummary.PENDING || 0;
   const disabledUserCount = userStatusSummary.DISABLED || 0;
@@ -842,6 +855,9 @@ export default async function AdminDashboardPage({ searchParams }) {
           <p className="muted-text">
             Review approvals, manage access, trace activity, and monitor delivery without losing operational context.
           </p>
+          <a className='button primary compact' href='#user-management'>
+            Add user
+          </a>
         </div>
         <span className="status-pill success">Signed in as {session.user.email}</span>
       </div>
@@ -2019,19 +2035,67 @@ export default async function AdminDashboardPage({ searchParams }) {
           </div>
         </section>
 
-        <section className="admin-card">
+        <section className="admin-card wide team-command-card" aria-labelledby="team-access-heading">
           <div className="panel-header">
             <div>
-              <p className="eyebrow">Team</p>
-              <h2>Users and roles</h2>
+              <p className="eyebrow">Team access</p>
+              <h2 id="team-access-heading">Build the team behind every governed skill.</h2>
+              <p className="team-section-copy">
+                Invite teammates, connect agent identities, and keep permissions and working branches explicit.
+              </p>
+            </div>
+            <span className="status-pill neutral">{userCount} team seats</span>
+          </div>
+          <div id='user-management' />
+          <div className="team-health-grid" aria-label="Team access summary">
+            <div className="team-health-stat">
+              <strong>{activeUserCount}</strong>
+              <span>Active now</span>
+            </div>
+            <div className="team-health-stat">
+              <strong>{invitedUserCount + pendingUserCount}</strong>
+              <span>Awaiting access</span>
+            </div>
+            <div className="team-health-stat">
+              <strong>{adminCount}</strong>
+              <span>Administrators</span>
+            </div>
+            <div className="team-health-stat">
+              <strong>{branchReadyUserCount}</strong>
+              <span>Branch ready</span>
             </div>
           </div>
-          <div className="admin-table">
-            {users.map((user) => (
-              <div className="admin-row" key={user.id}>
-                <div>
+
+          <div className="team-access-layout">
+            <InviteUserForm />
+            <aside className="team-access-guide" aria-labelledby="team-access-guide-title">
+              <p className="eyebrow">Access model</p>
+              <h3 id="team-access-guide-title">Invite. Connect. Route.</h3>
+              <ol>
+                <li><span>01</span><p><strong>Start with least privilege.</strong> Invite members as users unless they need governance controls.</p></li>
+                <li><span>02</span><p><strong>Connect their agent identity.</strong> External IDs keep MCP and editor activity attributed correctly.</p></li>
+                <li><span>03</span><p><strong>Give work a safe lane.</strong> A personal branch keeps changes reviewable before they reach shared branches.</p></li>
+              </ol>
+            </aside>
+          </div>
+
+          <div className="team-directory-heading">
+            <div>
+              <p className="eyebrow">Workspace directory</p>
+              <h3>People, access, and delivery lanes</h3>
+              <p>Review identity mappings and access controls without losing sight of each teammate's working context.</p>
+            </div>
+            <span>{userCount} {userCount === 1 ? "person" : "people"}</span>
+          </div>
+
+          <div className="admin-table team-directory" role="list" aria-label="Workspace team members">
+            {users.length > 0 ? (
+              users.map((user) => (
+              <article className="admin-row team-member-row" key={user.id} role="listitem">
+                <div className="team-member-main">
+                  <span className="team-member-avatar" aria-hidden="true">{getUserInitials(user)}</span>
                   <strong>{user.name || user.email}</strong>
-                  <span>
+                  <span className="team-member-meta">
                     {joinMeta([
                       user.email,
                       user.externalUserId ? `External ${user.externalUserId}` : "No external id",
@@ -2040,12 +2104,13 @@ export default async function AdminDashboardPage({ searchParams }) {
                       `Updated ${formatDate(user.updatedAt)}`,
                     ])}
                   </span>
-                  <form action={setUserExternalIdentity} className="inline-form">
+                  <form action={setUserExternalIdentity} className="inline-form team-setting-form">
                     <input type="hidden" name="userId" value={user.id} />
                     <input
                       className="search-field"
                       type="text"
                       name="externalUserId"
+                      aria-label={`Agent identity for ${user.name || user.email}`}
                       defaultValue={user.externalUserId || ""}
                       placeholder="user-1"
                     />
@@ -2053,12 +2118,13 @@ export default async function AdminDashboardPage({ searchParams }) {
                       Save external ID
                     </button>
                   </form>
-                  <form action={setUserPreferredBranch} className="inline-form">
+                  <form action={setUserPreferredBranch} className="inline-form team-setting-form">
                     <input type="hidden" name="userId" value={user.id} />
                     <input
                       className="search-field"
                       type="text"
                       name="preferredBranch"
+                      aria-label={`Working branch for ${user.name || user.email}`}
                       defaultValue={user.preferredBranch || ""}
                       placeholder="users/sanay"
                     />
@@ -2067,15 +2133,19 @@ export default async function AdminDashboardPage({ searchParams }) {
                     </button>
                   </form>
                 </div>
-                <div className="admin-actions">
+                <div className="admin-actions team-member-actions">
                   <span className={`status-pill ${user.role === "ADMIN" ? "success" : "neutral"}`}>{user.role}</span>
                   <span className={`status-pill ${userStatusClass(user.status)}`}>{user.status}</span>
                   {user.status !== "ACTIVE" ? (
                     <form action={setUserStatus}>
                       <input type="hidden" name="userId" value={user.id} />
                       <input type="hidden" name="status" value="ACTIVE" />
-                      <button className="button primary compact" type="submit">
-                        Approve
+                      <button
+                        className="button primary compact"
+                        type="submit"
+                        aria-label={`Activate access for ${user.name || user.email}`}
+                      >
+                        Activate access
                       </button>
                     </form>
                   ) : null}
@@ -2083,29 +2153,41 @@ export default async function AdminDashboardPage({ searchParams }) {
                     <form action={setUserStatus}>
                       <input type="hidden" name="userId" value={user.id} />
                       <input type="hidden" name="status" value="DISABLED" />
-                      <button className="button secondary compact" type="submit">
-                        Disable
+                      <button
+                        className="button secondary compact" type="submit"
+                        aria-label={`Pause access for ${user.name || user.email}`}
+                      >
+                        Pause access
                       </button>
                     </form>
                   ) : (
                     <form action={setUserStatus}>
                       <input type="hidden" name="userId" value={user.id} />
                       <input type="hidden" name="status" value="ACTIVE" />
-                      <button className="button secondary compact" type="submit">
-                        Reactivate
+                      <button
+                        className="button secondary compact" type="submit"
+                        aria-label={`Restore access for ${user.name || user.email}`}
+                      >
+                        Restore access
                       </button>
                     </form>
                   )}
                   <form action={setUserRole}>
                     <input type="hidden" name="userId" value={user.id} />
                     <input type="hidden" name="role" value={user.role === "ADMIN" ? "USER" : "ADMIN"} />
-                    <button className="button secondary compact" type="submit">
-                      Make {user.role === "ADMIN" ? "User" : "Admin"}
+                    <button
+                      className="button secondary compact" type="submit"
+                      aria-label={`Change ${user.name || user.email} to ${user.role === "ADMIN" ? "member" : "administrator"}`}
+                    >
+                      {user.role === "ADMIN" ? "Move to member" : "Grant admin"}
                     </button>
                   </form>
                 </div>
-              </div>
-            ))}
+              </article>
+              ))
+            ) : (
+              <div className="empty-state">No team members yet. Create the first invitation to begin building the workspace roster.</div>
+            )}
           </div>
         </section>
 

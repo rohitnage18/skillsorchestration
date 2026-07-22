@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createSkill, importSkill, saveFile } from "./skillStorage.js";
+import { createSkill, importSkill, installSkillForClient, saveFile } from "./skillStorage.js";
 import {
   descriptionSchema,
   editableSkillPathSchema,
@@ -53,6 +53,7 @@ export const skillChangeRequestSchema = z.discriminatedUnion("type", [
     type: z.literal("SKILL_IMPORT"),
     skillName: skillNameSchema,
     targetName: skillNameSchema,
+    client: z.enum(["workspace", "codex", "claude-code"]).default("workspace"),
   }),
   z.object({
     type: z.literal("SKILL_FILE_UPDATE"),
@@ -236,8 +237,11 @@ async function applySkillChangeRequest(request, reviewerId) {
   }
 
   if (payload.type === "SKILL_IMPORT") {
-    const path = await importSkill(payload.skillName, payload.targetName, reviewerId);
-    return { path };
+    if (payload.client === "workspace") {
+      const path = await importSkill(payload.skillName, payload.targetName, reviewerId);
+      return { client: payload.client, path };
+    }
+    return await installSkillForClient(payload.skillName, payload.client, reviewerId);
   }
 
   if (payload.type === "SKILL_FILE_UPDATE") {
@@ -254,7 +258,7 @@ function getResourceId(payload) {
   }
 
   if (payload.type === "SKILL_IMPORT") {
-    return `${payload.skillName}:${payload.targetName}`;
+    return `${payload.client}:${payload.skillName}:${payload.targetName}`;
   }
 
   return payload.skillName;

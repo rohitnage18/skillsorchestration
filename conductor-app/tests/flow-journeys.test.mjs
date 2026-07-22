@@ -202,3 +202,47 @@ test("approval flow creates and approves a pending skill request", async () => {
     cleanupSkill(skillName);
   }
 });
+
+test("approved client import request installs the skill into Codex", async () => {
+  const skillName = "test-approved-codex-import";
+  const destination = path.join(repoRoot, ".agents", "skills", skillName);
+  const auditEntries = [];
+  createFixtureSkill(skillName);
+
+  __setSkillStorageTestHooks({
+    db: makeFakeUserDb(),
+    logAction: async (entry) => {
+      auditEntries.push(entry);
+      return { success: true };
+    },
+  });
+  __setSkillChangeRequestTestHooks({
+    db: makeSkillChangeRequestDb(),
+    logAction: async (entry) => {
+      auditEntries.push(entry);
+      return { success: true };
+    },
+  });
+
+  try {
+    const request = await createSkillChangeRequest("requester-1", {
+      type: "SKILL_IMPORT",
+      skillName,
+      targetName: skillName,
+      client: "codex",
+    });
+    const approved = await approveSkillChangeRequest(request.id, "admin-reviewer");
+
+    assert.equal(approved.status, "APPROVED");
+    assert.equal(approved.result.client, "codex");
+    assert.equal(approved.result.path, `codex:${skillName}`);
+    assert.equal(fs.existsSync(path.join(destination, "SKILL.md")), true);
+    assert.ok(auditEntries.some((entry) => entry.action === "skill:import"));
+    assert.ok(auditEntries.some((entry) => entry.action === "skill-change:approve"));
+  } finally {
+    __setSkillStorageTestHooks();
+    __setSkillChangeRequestTestHooks();
+    fs.rmSync(destination, { recursive: true, force: true });
+    cleanupSkill(skillName);
+  }
+});

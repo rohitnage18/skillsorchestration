@@ -8,6 +8,7 @@ import {
   createSkill,
   findSimilarSkills,
   loadSkill,
+  installSkillForClient,
   loadSkillState,
   importSkill,
   loadLatestSkillQaReport,
@@ -397,5 +398,44 @@ test("skill QA report generation stores a reusable audit artifact", async () => 
   } finally {
     cleanupSkillFixture(skillName);
     fs.rmSync(path.join(process.cwd(), "data", "skill-qa-reports", skillName), { recursive: true, force: true });
+  }
+});
+
+test("client skill import installs discoverable Codex and Claude Code project skills", async () => {
+  const skillName = "test-client-skill-import";
+  const logged = [];
+  const codexDestination = path.join(repoRoot, ".agents", "skills", skillName);
+  const claudeDestination = path.join(repoRoot, ".claude", "skills", skillName);
+  createSkillFixture(skillName);
+
+  __setSkillStorageTestHooks({
+    db: makeFakeDb(),
+    logAction: async (entry) => {
+      logged.push(entry);
+      return { success: true };
+    },
+  });
+
+  try {
+    const codex = await installSkillForClient(skillName, "codex", "admin-user");
+    const claude = await installSkillForClient(skillName, "claude-code", "admin-user");
+
+    assert.equal(codex.path, `codex:${skillName}`);
+    assert.match(codex.message, /Use \$test-client-skill-import in chat/);
+    assert.equal(claude.path, `claude-code:${skillName}`);
+    assert.match(claude.message, /Use \/test-client-skill-import in chat/);
+    assert.equal(fs.existsSync(path.join(codexDestination, "SKILL.md")), true);
+    assert.equal(fs.existsSync(path.join(codexDestination, "references", "guide.md")), true);
+    assert.equal(fs.existsSync(path.join(claudeDestination, "SKILL.md")), true);
+    assert.equal(fs.existsSync(path.join(claudeDestination, "references", "guide.md")), true);
+    assert.deepEqual(
+      logged.map((entry) => entry.metadata.client),
+      ["codex", "claude-code"]
+    );
+  } finally {
+    __setSkillStorageTestHooks();
+    fs.rmSync(codexDestination, { recursive: true, force: true });
+    fs.rmSync(claudeDestination, { recursive: true, force: true });
+    cleanupSkillFixture(skillName);
   }
 });

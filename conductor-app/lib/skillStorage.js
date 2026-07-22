@@ -10,6 +10,11 @@ import {
 } from "./inputSafety.js";
 
 const SKILLS_ROOT = path.join(/* turbopackIgnore: true */ process.cwd(), "..", "skills");
+const PROJECT_ROOT = path.resolve(process.cwd(), "..");
+const CLIENT_SKILL_ROOTS = {
+  codex: path.join(PROJECT_ROOT, ".agents", "skills"),
+  "claude-code": path.join(PROJECT_ROOT, ".claude", "skills"),
+};
 const IMPORT_ROOT = path.join(/* turbopackIgnore: true */ process.cwd(), "imported-workspaces");
 const VERSION_HISTORY_ROOT = path.join(/* turbopackIgnore: true */ process.cwd(), "data", "skill-versions");
 const QA_REPORTS_ROOT = path.join(/* turbopackIgnore: true */ process.cwd(), "data", "skill-qa-reports");
@@ -1075,7 +1080,6 @@ function getSkillRecord(entryName) {
     triggerSummary: validation.triggerValidation,
     latestQaReport: state.latestQaReport || null,
   });
-
   return {
     name: entryName,
     description,
@@ -1678,6 +1682,55 @@ function __setSkillStorageTestHooks(hooks = {}) {
   skillStorageTestHooks.logAction = hooks.logAction ?? null;
 }
 
+async function installSkillForClient(skillName, client, userId) {
+  const normalizedSkillName = normalizeSkillName(skillName);
+  const targetRoot = CLIENT_SKILL_ROOTS[client];
+  if (!targetRoot) {
+    throw new Error("Import client must be workspace, codex, or claude-code.");
+  }
+
+  const skillDir = ensureSkillExists(normalizedSkillName);
+  const targetDir = safeJoin(targetRoot, normalizedSkillName);
+  if (fs.existsSync(targetDir)) {
+    throw new Error(`Skill is already installed for ${client}: ${normalizedSkillName}`);
+  }
+
+  fs.mkdirSync(targetRoot, { recursive: true });
+  fs.cpSync(skillDir, targetDir, { recursive: true });
+
+  const importedTo = `${client}:${normalizedSkillName}`;
+  saveSkillState(normalizedSkillName, {
+    importedTo,
+    importedAt: new Date().toISOString(),
+  });
+  await logSkillActivity({
+    userId,
+    action: "skill:import",
+    resourceId: importedTo,
+    changes: {
+      before: { sourceSkillName: normalizedSkillName },
+      after: { importedTo, client },
+    },
+    metadata: {
+      skillName: normalizedSkillName,
+      importedTo,
+      client,
+      destination: path.relative(PROJECT_ROOT, targetDir).replace(/\\/g, "/"),
+      source: "conductor-ui",
+    },
+  });
+
+  const clientLabel = client === "codex" ? "Codex" : "Claude Code";
+  const invocation = client === "codex" ? `$${normalizedSkillName}` : `/${normalizedSkillName}`;
+  return {
+    client,
+    path: importedTo,
+    destination: targetDir,
+    message:
+      `Skill "${normalizedSkillName}" imported successfully into ${clientLabel}. ` +
+      `Use ${invocation} in chat. If it is not listed yet, start a new chat or restart ${clientLabel}.`,
+  };
+}
 async function importSkill(skillName, importName, userId) {
   const skillDir = ensureSkillExists(skillName);
   const destinationName = normalizeSkillName(importName || skillName);
@@ -1725,6 +1778,7 @@ export {
   loadFile,
   saveFile,
   importSkill,
+  installSkillForClient,
   loadSkillState,
   logSkillActivity,
   listImportedWorkspaces,
