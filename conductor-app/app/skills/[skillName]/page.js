@@ -23,6 +23,7 @@ export default function SkillEditor({ params }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
   const [toast, setToast] = useState(initialToast);
+  const [importClient, setImportClient] = useState("codex");
   const [importTargetMode, setImportTargetMode] = useState(`${skillName}-imported`);
   const [customImportTarget, setCustomImportTarget] = useState("");
 
@@ -68,17 +69,19 @@ export default function SkillEditor({ params }) {
         `${skillName}-imported`,
         skillName,
         `${skillName}-workspace`,
-        summary?.importedTo || "",
+        summary?.importedTo && !summary.importedTo.includes(":") ? summary.importedTo : "",
       ].filter(Boolean)
     )
   );
 
   const resolvedImportTarget =
-    importTargetMode === CUSTOM_IMPORT_TARGET ? customImportTarget.trim() : importTargetMode.trim();
+    importClient === "workspace"
+      ? importTargetMode === CUSTOM_IMPORT_TARGET ? customImportTarget.trim() : importTargetMode.trim()
+      : skillName;
 
   const importSkill = async () => {
     const targetName = resolvedImportTarget;
-    if (!targetName) {
+    if (importClient === "workspace" && !targetName) {
       showToast("Choose an import workspace target first.", "error");
       return;
     }
@@ -87,28 +90,30 @@ export default function SkillEditor({ params }) {
       const res = await fetch("/api/import", {
         method: "POST",
         headers: getRequestHeaders(),
-        body: JSON.stringify({ skillName, targetName }),
+        body: JSON.stringify({ skillName, targetName, client: importClient }),
       });
       const data = await res.json();
       if (res.status === 403) {
-        await requestSkillImport(skillName, targetName);
-        showToast(`Approval requested to import ${skillName}`, "success");
+        await requestSkillImport(skillName, targetName, importClient);
+        showToast(`Approval requested to import ${skillName} into ${importClient}`, "success");
         return;
       }
       if (!res.ok) throw new Error(data.error || "Unable to import skill");
-      showToast(`Imported to ${data.path}`, "success");
+      showToast(data.message || `Imported to ${data.path}`, "success");
       setSummary((prev) => ({ ...prev, importedTo: data.path }));
-      setImportTargetMode(data.path);
+      if (importClient === "workspace") {
+        setImportTargetMode(data.path);
+      }
     } catch (error) {
       showToast(error.message, "error");
     }
   };
 
-  const requestSkillImport = async (skillName, targetName) => {
+  const requestSkillImport = async (skillName, targetName, client) => {
     const res = await fetch("/api/skill-change-requests", {
       method: "POST",
       headers: getRequestHeaders(),
-      body: JSON.stringify({ type: "SKILL_IMPORT", skillName, targetName }),
+      body: JSON.stringify({ type: "SKILL_IMPORT", skillName, targetName, client }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Unable to request skill import");
@@ -212,6 +217,21 @@ export default function SkillEditor({ params }) {
             </button>
             <div className="skill-action-block">
               <label className="form-field">
+                <span>Install for</span>
+                <select
+                  className="search-field"
+                  value={importClient}
+                  onChange={(event) => setImportClient(event.target.value)}
+                  disabled={isLoading}
+                >
+                  <option value="codex">Codex project</option>
+                  <option value="claude-code">Claude Code project</option>
+                  <option value="workspace">Conductor managed workspace</option>
+                </select>
+              </label>
+              {importClient === "workspace" ? (
+                <>
+              <label className="form-field">
                 <span>Import target</span>
                 <select
                   className="search-field"
@@ -238,9 +258,15 @@ export default function SkillEditor({ params }) {
                   />
                 </label>
               ) : null}
+                </>
+              ) : (
+                <p className="page-copy">
+                  Installs into the current repository's {importClient === "codex" ? "Codex .agents/skills" : "Claude Code .claude/skills"} folder.
+                </p>
+              )}
             </div>
             <button className="button secondary full-width" onClick={importSkill} disabled={isLoading}>
-              Request import
+              Request {importClient === "workspace" ? "workspace" : importClient} import
             </button>
             <button className="button secondary full-width" onClick={() => router.push("/skills")}>Back to skills</button>
           </div>

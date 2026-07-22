@@ -229,6 +229,37 @@ SMTP_PASSWORD=your-password
 FROM_EMAIL=noreply@example.com
 ```
 
+## Import Skills Into Codex or Claude Code
+
+The skill detail page can install a filesystem skill directly into the current repository:
+
+- Codex project skills: `.agents/skills/<skill-name>/SKILL.md`
+- Claude Code project skills: `.claude/skills/<skill-name>/SKILL.md`
+- Conductor workspace copies: `conductor-app/imported-workspaces/<workspace-name>/SKILL.md`
+
+Choose the client under **Install for**, then select **Request import**. Admin users install
+immediately. Other users create a pending approval request; approval installs into the
+originally selected client target.
+
+For imports requested inside Codex or Claude Code chat, call the MCP tool:
+
+```text
+import_skill(name: "backend", client: "codex")
+import_skill(name: "frontend", client: "claude-code")
+```
+
+The tool returns a confirmation message for the chat, including the installation path and
+invocation:
+
+- Codex: `$backend`
+- Claude Code: `/frontend`
+
+Existing client installations are not overwritten. Codex normally detects skill changes
+automatically; start a new chat or restart Codex if needed. Claude Code watches existing
+skill directories live; restart it if the top-level skill directory was created after the
+session started.
+
+
 ## Admin Protection
 
 Basic admin protection is implemented for skill tampering.
@@ -236,7 +267,7 @@ Basic admin protection is implemented for skill tampering.
 Admin-only actions:
 
 - Create a filesystem skill.
-- Import a skill into a workspace.
+- Import a skill into a Conductor workspace, Codex project, or Claude Code project.
 - Edit `SKILL.md`.
 - Edit `references/*.md`.
 - View/purge audit logs.

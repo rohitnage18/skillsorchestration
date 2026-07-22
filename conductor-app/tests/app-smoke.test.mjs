@@ -51,6 +51,35 @@ test("home, login, and skills pages keep their primary smoke-check copy", async 
   assert.doesNotMatch(publicAppSource, /Enter destination folder name for imported skill/);
 });
 
+test("admin user management exposes a protected add-user flow", () => {
+  const adminSource = fs.readFileSync(path.join(process.cwd(), "app", "admin", "page.jsx"), "utf-8");
+  const formSource = fs.readFileSync(path.join(process.cwd(), "app", "admin", "InviteUserForm.jsx"), "utf-8");
+  const usersApiSource = fs.readFileSync(path.join(process.cwd(), "app", "api", "users", "route.ts"), "utf-8");
+  const globalStyles = fs.readFileSync(path.join(process.cwd(), "app", "globals.css"), "utf-8");
+
+  assert.match(adminSource, /<InviteUserForm \/>/);
+  assert.match(adminSource, /href='#user-management'/);
+  assert.match(adminSource, /id='user-management'/);
+  assert.match(adminSource, /Build the team behind every governed skill/);
+  assert.match(adminSource, /aria-labelledby="team-access-heading"/);
+  assert.match(adminSource, /role="list"/);
+  assert.match(adminSource, /Agent identity for/);
+  assert.match(formSource, /Invite a teammate/);
+  assert.match(formSource, /aria-describedby="invite-user-note"/);
+  assert.match(formSource, /Work email/);
+  assert.match(formSource, /Add user/);
+  assert.match(formSource, /fetch\("\/api\/users"/);
+  assert.match(formSource, /type="email"/);
+  assert.match(formSource, /aria-live="polite"/);
+  assert.match(globalStyles, /\.team-health-grid/);
+  assert.match(globalStyles, /\.team-member-row/);
+  assert.match(globalStyles, /@media \(max-width: 620px\)/);
+  assert.match(globalStyles, /@media \(prefers-contrast: more\)/);
+  assert.match(usersApiSource, /requirePermission\(request\.headers, "users:manage"\)/);
+  assert.match(usersApiSource, /status: 409/);
+  assert.match(usersApiSource, /action: input\.id \? "user:update" : "user:invite"/);
+});
+
 test("workflow route wiring keeps execution permission and ownership aligned", async () => {
   const authSource = fs.readFileSync(path.join(process.cwd(), "lib", "auth.js"), "utf-8");
   const workflowExecuteRouteSource = fs.readFileSync(

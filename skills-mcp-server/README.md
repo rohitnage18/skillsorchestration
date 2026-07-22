@@ -109,6 +109,23 @@ delimiters so it's always obvious which section came from which file.
 If `name` doesn't match any skill, the tool returns a helpful error listing every skill
 name that *is* available, rather than a bare "not found."
 
+### `import_skill`
+
+Arguments:
+
+- `name`: exact skill name returned by `list_skills`
+- `client`: `codex` or `claude-code`
+
+Copies the complete skill directory into the active project configured by `PROJECT_PATH`:
+
+- `codex` -> `<PROJECT_PATH>/.agents/skills/<name>`
+- `claude-code` -> `<PROJECT_PATH>/.claude/skills/<name>`
+
+The result explicitly confirms the import in chat and tells the user how to invoke it.
+Existing destinations are reported as already installed and are never overwritten.
+`PROJECT_PATH` is required.
+
+
 ## A note on get_skill's size
 
 `get_skill` deliberately returns everything for a skill in one response — the router and

@@ -5,6 +5,7 @@
  *
  * Tools:
  *   - list_skills: lists every available skill
+ *   - import_skill: installs a library skill for Codex or Claude Code in PROJECT_PATH
  *   - get_skill: returns full content of one skill
  *   - read_context: reads CONTEXT.md from the active project (PROJECT_PATH)
  *   - update_context: rewrites sections + appends changelog entry
@@ -21,6 +22,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { listSkills, getSkill, SkillNotFoundError } from "./skills.js";
+import { formatSkillInstallConfirmation, installSkillForClient } from "./install.js";
 import {
   readContext,
   updateContext,
@@ -119,6 +121,44 @@ async function main(): Promise<void> {
     }
   );
 
+  server.registerTool(
+    "import_skill",
+    {
+      title: "Import a skill into Codex or Claude Code",
+      description:
+        "Copies one skill from the shared library into the active project's native skill directory. " +
+        "Use client='codex' for .agents/skills or client='claude-code' for .claude/skills. " +
+        "The tool returns a confirmation message that must be shown to the user in chat. " +
+        "Existing installations are never overwritten.",
+      inputSchema: {
+        name: z.string().describe("Exact skill name returned by list_skills."),
+        client: z.enum(["codex", "claude-code"]).describe(
+          "Client that should discover the imported skill."
+        ),
+      },
+    },
+    async ({ name, client }) => {
+      try {
+        const projectPath = requireProjectPath();
+        const result = await installSkillForClient(skillsPath, projectPath, name, client);
+        await reportSkillEvent(conductorUrl, {
+          action: "skill:import",
+          skillName: result.skillName,
+          resourceId: `${result.client}:${result.skillName}`,
+          metadata: {
+            client: result.client,
+            destination: result.destination,
+            status: result.status,
+            source: "skills-mcp-server",
+          },
+        });
+        return { content: [{ type: "text", text: formatSkillInstallConfirmation(result) }] };
+      } catch (err) {
+        return errorResult(err);
+      }
+    }
+  );
+
   // ── Project context tools ──────────────────────────────────────────────────
 
   server.registerTool(
@@ -209,7 +249,7 @@ async function main(): Promise<void> {
   );
 }
 
-type SkillEventAction = "skill:list" | "skill:read";
+type SkillEventAction = "skill:list" | "skill:read" | "skill:import";
 
 interface SkillEventInput {
   action: SkillEventAction;
