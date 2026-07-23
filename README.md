@@ -315,12 +315,16 @@ are implemented. The remaining production-hardening work is:
 Install:
 
 - Git
-- Node.js 20.9 or newer (Node.js 24 is used in CI)
+- Node.js 20.19, Node.js 22.12, or Node.js 24+ (`.nvmrc` and CI use Node.js 24)
 - npm
 - PostgreSQL
 - Python 3.10+ if you need Python helper scripts/tests
 
 ### 2. Install Dependencies
+
+Use the Node.js version selected by `.nvmrc` when your version manager supports it.
+The Conductor dependency graph installs with standard `npm install` and `npm ci`; do
+not use `--legacy-peer-deps`.
 
 Root workspace:
 

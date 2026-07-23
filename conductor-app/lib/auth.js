@@ -24,7 +24,7 @@ const rolePermissions = {
   ],
 };
 
-export async function getRequestUserId(headers) {
+export async function getRequestUserId() {
   const session = await auth();
   if (session?.user?.id) {
     return session.user.id;
@@ -34,7 +34,7 @@ export async function getRequestUserId(headers) {
 }
 
 export async function getRequestUser(headers) {
-  const userId = await getRequestUserId(headers);
+  const userId = await getRequestUserId();
   if (!userId) {
     return null;
   }

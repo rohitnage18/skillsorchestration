@@ -15,19 +15,22 @@ The skill library itself lives in this repository's `skills/` folder, and MCP `l
 
 ## Start Admin App
 
-```powershell
+```bash
 cd conductor-app
 npm install
-npm.cmd run prisma:generate
-npm.cmd run prisma:migrate
-npm.cmd run dev
+npm run prisma:generate
+npm run prisma:migrate
+npm run dev
 ```
 
 Recommended local auth-safe startup:
 
-```powershell
-npm.cmd run dev:local
+```bash
+npm run dev:local
 ```
+
+The local launcher is cross-platform. On Windows PowerShell installations that block
+`npm.ps1`, use `npm.cmd run dev:local` instead.
 
 Default local URL:
 

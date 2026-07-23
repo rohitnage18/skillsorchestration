@@ -52,7 +52,7 @@ person's AI session won't otherwise know it changed.
 
 ## Build and validation
 
-Use Node.js 20.9 or newer; GitHub Actions uses Node.js 24. Install dependencies in
+Use Node.js 20.19, Node.js 22.12, or Node.js 24+; `.nvmrc` and GitHub Actions use Node.js 24. Install dependencies in
 `conductor-app`, `skills-mcp-server`, and `skills-vscode-extension` with `npm ci`.
 
 Run the complete repository check from the repository root:

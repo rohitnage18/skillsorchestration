@@ -87,6 +87,10 @@ Reconciled repository guidance with the implemented OAuth, approval, admin, even
 and verification flows. Raised the documented Conductor Node.js minimum to the version
 required by Next.js 16 and refreshed the remaining hardening roadmap.
 
+Aligned Nodemailer with the Auth.js peer contract, matched the declared Node.js range to
+Prisma 7, added a Node.js 24 version file and cross-platform local launchers, deferred
+database initialization until first use, and sanitized server/Zod errors returned by APIs.
+
 ### 2026-07-09
 
 Implemented the first orchestration slice: real SMTP admin email, shared skill activity logging, conductor event API, filesystem skill create/import/edit/test logging, registry execution logging, and VS Code preview/use/file-update event reporting.
