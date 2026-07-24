@@ -370,6 +370,7 @@ SMTP_PASSWORD=your-password
 FROM_EMAIL=noreply@example.com
 
 SKILL_EVENTS_TOKEN=change-me
+SKILL_EVENTS_HMAC_SECRET=use-a-different-strong-secret
 ```
 
 `SKILL_EVENTS_TOKEN` is required for external callers such as MCP and the VS Code extension. They must send:
@@ -377,6 +378,11 @@ SKILL_EVENTS_TOKEN=change-me
 ```text
 Authorization: Bearer change-me
 ```
+
+When `SKILL_EVENTS_HMAC_SECRET` is configured, the MCP server signs each event
+automatically when the same secret is present in its environment. For VS Code, run
+`Skills: Set Event HMAC Secret`; the extension stores the secret with VS Code SecretStorage
+and signs the exact request body.
 
 ### 4. Apply Database Schema
 
@@ -425,6 +431,7 @@ In VS Code settings:
 ```
 
 If `skillsLibrary.conductorUrl` is empty, the extension still works locally but does not report events.
+If signed events are enabled, also run `Skills: Set Event HMAC Secret` from the command palette.
 
 ## Agent Workflow In Detail
 

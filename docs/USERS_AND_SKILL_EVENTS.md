@@ -58,7 +58,8 @@ Required:
 
 ```json
 {
-  "SKILL_EVENTS_TOKEN": "same-token"
+  "SKILL_EVENTS_TOKEN": "same-token",
+  "SKILL_EVENTS_HMAC_SECRET": "same-hmac-secret"
 }
 ```
 
@@ -86,6 +87,10 @@ Optional:
   "skillsLibrary.eventToken": "same-token"
 }
 ```
+
+If the conductor configures `SKILL_EVENTS_HMAC_SECRET`, run
+`Skills: Set Event HMAC Secret` from the VS Code command palette. Do not put the HMAC
+secret in workspace settings; the command stores it in VS Code SecretStorage.
 
 ## Verify
 

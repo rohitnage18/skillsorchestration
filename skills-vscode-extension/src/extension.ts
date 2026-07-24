@@ -13,8 +13,10 @@ import * as vscode from "vscode";
 import * as path from "node:path";
 import { discoverSkills, getFullSkillContent, SkillInfo } from "./skills";
 import { SkillsTreeDataProvider, SkillTreeNode } from "./skillsTreeProvider";
+import { buildSkillEventRequest } from "./skillEvents";
 
 const PREVIEW_SCHEME = "skills-preview";
+const EVENT_HMAC_SECRET_KEY = "skillsLibrary.eventHmacSecret";
 
 type SkillEventAction = "skill:preview" | "skill:use" | "skill:file:update";
 
@@ -133,29 +135,21 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const userId = getConfiguredUserId();
     const userName = getConfiguredUserName();
-    const headers: Record<string, string> = {
-      "content-type": "application/json",
-      "x-user-id": userId,
-      "x-user-email": getConfiguredUserEmail(userId),
-    };
-    if (userName) {
-      headers["x-user-name"] = userName;
-    }
     const token = getEventToken();
-    if (token) {
-      headers.authorization = `Bearer ${token}`;
-    }
+    const hmacSecret = (await context.secrets.get(EVENT_HMAC_SECRET_KEY))?.trim();
+    const request = buildSkillEventRequest(event, {
+      userId,
+      userEmail: getConfiguredUserEmail(userId),
+      userName,
+      token,
+      hmacSecret,
+    });
 
     try {
       const response = await fetch(`${conductorUrl}/api/skill-events`, {
         method: "POST",
-        headers,
-        body: JSON.stringify({
-          action: event.action,
-          skillName: event.skillName,
-          source: "vscode-extension",
-          metadata: event.metadata,
-        }),
+        headers: request.headers,
+        body: request.body,
       });
 
       if (!response.ok) {
@@ -231,6 +225,27 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.window.showInformationMessage(
           `Skills Library: found ${treeProvider.getSkillCount()} skill(s).`
         );
+      }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("skillsLibrary.setEventHmacSecret", async () => {
+      const secret = await vscode.window.showInputBox({
+        title: "Skills Library: Set Event HMAC Secret",
+        prompt: "Shared HMAC secret provided by the conductor administrator",
+        password: true,
+        ignoreFocusOut: true,
+      });
+      if (secret === undefined) {
+        return;
+      }
+      if (secret.trim()) {
+        await context.secrets.store(EVENT_HMAC_SECRET_KEY, secret.trim());
+        vscode.window.showInformationMessage("Skills Library: event HMAC secret saved securely.");
+      } else {
+        await context.secrets.delete(EVENT_HMAC_SECRET_KEY);
+        vscode.window.showInformationMessage("Skills Library: event HMAC secret cleared.");
       }
     })
   );

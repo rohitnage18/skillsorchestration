@@ -5,4 +5,5 @@ out/**
 .gitignore
 tsconfig.json
 **/*.map
+dist/extension.js
 *.vsix

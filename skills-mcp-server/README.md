@@ -144,6 +144,9 @@ Set `CONDUCTOR_URL`, `MCP_USER_ID`, and `MCP_USER_EMAIL` in your MCP config to r
 `list_skills` as `skill:list` and `get_skill` as `skill:read` to the conductor app.
 When SMTP is configured and an admin user exists, `get_skill` creates audit logs,
 notifications, and admin email. `list_skills` is stored in the database without email.
+Set `SKILL_EVENTS_TOKEN` for bearer authentication. If the conductor also configures
+`SKILL_EVENTS_HMAC_SECRET`, set the same secret for the MCP process; every event is then
+signed with a unique event id and millisecond timestamp for replay protection.
 
 See `../docs/USERS_AND_SKILL_EVENTS.md` for the full user setup flow.
 

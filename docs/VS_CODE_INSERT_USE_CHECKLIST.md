@@ -9,6 +9,7 @@ Use this checklist when validating that the VS Code extension reports `skill:use
 - `skillsLibrary.skillsPath` points to this repo's `skills/` folder
 - `skillsLibrary.conductorUrl` points to the local conductor app
 - `skillsLibrary.userId` and `skillsLibrary.eventToken` are configured
+- If signed events are enabled, `Skills: Set Event HMAC Secret` has been run
 - the referenced user already exists in the conductor database and is `ACTIVE`
 
 ## Validation Steps
@@ -30,5 +31,6 @@ Use this checklist when validating that the VS Code extension reports `skill:use
 ## Failure Checks
 
 - If content inserts but no event appears, inspect the VS Code `Skills Library` output channel.
-- If the event is rejected, verify `SKILL_EVENTS_TOKEN`, `x-user-id`, and user approval state.
+- If the event is rejected, verify `SKILL_EVENTS_TOKEN`, the HMAC secret when enabled,
+  `x-user-id`, and user approval state.
 - If audit logs exist but notifications do not, inspect conductor notification and email logs.

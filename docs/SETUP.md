@@ -36,6 +36,7 @@ FROM_EMAIL=noreply@example.com
 
 # Optional token for VS Code/external skill event reports
 SKILL_EVENTS_TOKEN=change-me
+SKILL_EVENTS_HMAC_SECRET=use-a-different-strong-secret
 
 # Strongly recommended for signed external events
 SKILL_EVENTS_HMAC_SECRET=change-me-again
@@ -76,6 +77,10 @@ The signature should be an HMAC-SHA256 over:
 ```text
 <timestamp>.<eventId>.<rawBody>
 ```
+
+The MCP server creates these headers when `SKILL_EVENTS_HMAC_SECRET` is present in its
+environment. In VS Code, run `Skills: Set Event HMAC Secret`; the value is kept in VS Code
+SecretStorage instead of workspace settings.
 
 ## Run Locally
 
@@ -120,6 +125,9 @@ When configured, the extension reports:
 - `skill:preview` when a user previews a skill or reference.
 - `skill:use` when a user inserts a skill into code.
 - `skill:file:update` when `SKILL.md` or `references/*.md` changes.
+
+When signed events are enabled, run `Skills: Set Event HMAC Secret` once on each user
+machine before testing event reporting.
 
 Security hardening now also includes:
 

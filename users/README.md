@@ -12,6 +12,7 @@ Users do not need admin database access or SMTP credentials.
 - admin-provided `CONDUCTOR_URL`
 - admin-provided external user id and email
 - required admin-provided `SKILL_EVENTS_TOKEN`
+- admin-provided `SKILL_EVENTS_HMAC_SECRET` when signed events are enabled
 
 If the admin has configured signed external events, your MCP or extension integration may also need to send:
 
@@ -24,6 +25,10 @@ The signature format is:
 ```text
 <timestamp>.<eventId>.<rawBody>
 ```
+
+The MCP server creates those headers automatically when `SKILL_EVENTS_HMAC_SECRET` is set.
+For the VS Code extension, run `Skills: Set Event HMAC Secret`; the secret is stored in
+VS Code SecretStorage.
 
 ## Install MCP Server
 
