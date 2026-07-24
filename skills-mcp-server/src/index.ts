@@ -23,6 +23,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { listSkills, getSkill, SkillNotFoundError } from "./skills.js";
 import { formatSkillInstallConfirmation, installSkillForClient } from "./install.js";
+import { buildSkillEventRequest, SkillEventInput } from "./skillEvents.js";
 import {
   readContext,
   updateContext,
@@ -249,15 +250,6 @@ async function main(): Promise<void> {
   );
 }
 
-type SkillEventAction = "skill:list" | "skill:read" | "skill:import";
-
-interface SkillEventInput {
-  action: SkillEventAction;
-  skillName: string;
-  resourceId: string;
-  metadata?: Record<string, unknown>;
-}
-
 function getConductorUrl(): string {
   return (process.env.CONDUCTOR_URL ?? "").trim().replace(/\/+$/, "");
 }
@@ -277,32 +269,20 @@ async function reportSkillEvent(conductorUrl: string, event: SkillEventInput): P
     (userId.includes("@") ? userId : `${userId}@local.conductor`);
   const userName = (process.env.MCP_USER_NAME ?? "").trim();
   const token = (process.env.SKILL_EVENTS_TOKEN ?? "").trim();
-
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-    "x-user-id": userId,
-    "x-user-email": userEmail,
-  };
-
-  if (userName) {
-    headers["x-user-name"] = userName;
-  }
-
-  if (token) {
-    headers.authorization = `Bearer ${token}`;
-  }
+  const hmacSecret = (process.env.SKILL_EVENTS_HMAC_SECRET ?? "").trim();
+  const request = buildSkillEventRequest(event, {
+    userId,
+    userEmail,
+    userName,
+    token,
+    hmacSecret,
+  });
 
   try {
     const response = await fetch(`${conductorUrl}/api/skill-events`, {
       method: "POST",
-      headers,
-      body: JSON.stringify({
-        action: event.action,
-        skillName: event.skillName,
-        resourceId: event.resourceId,
-        source: "skills-mcp-server",
-        metadata: event.metadata,
-      }),
+      headers: request.headers,
+      body: request.body,
     });
 
     if (!response.ok) {

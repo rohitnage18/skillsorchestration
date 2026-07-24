@@ -4,6 +4,17 @@ import { z } from "zod";
 
 import { errorResponse } from "../lib/http.ts";
 
+test("secure Nodemailer alias exposes the SMTP transport API", async () => {
+  const { default: nodemailer } = await import("secure-nodemailer");
+  const transport = nodemailer.createTransport({
+    streamTransport: true,
+    newline: "unix",
+  });
+
+  assert.equal(typeof transport.sendMail, "function");
+  transport.close();
+});
+
 test("errorResponse hides server errors and logs details server-side", async () => {
   const originalConsoleError = console.error;
   const logged = [];
