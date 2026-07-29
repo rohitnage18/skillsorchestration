@@ -92,6 +92,10 @@ export async function POST(req: Request) {
     const rawInput = JSON.parse(rawBody);
     assertJsonByteSize(rawInput, undefined, "Skill event payload");
     const input = skillEventSchema.parse(rawInput);
+    const resolvedUser = await resolveExternalEventUser({
+      externalUserId: eventHeaders.userId,
+      email: eventHeaders.userEmail,
+    });
     const resourceId = input.resourceId ?? input.skillName;
     const dedupeKey = `${eventHeaders.userId}:${input.action}:${resourceId}:${input.source}`;
     const now = Date.now();
@@ -104,12 +108,6 @@ export async function POST(req: Request) {
       recentEvents.set(dedupeKey, now);
       pruneRecentEvents(now);
     }
-
-    const resolvedUser = await resolveExternalEventUser({
-      externalUserId: eventHeaders.userId,
-      email: eventHeaders.userEmail,
-      name: eventHeaders.userName,
-    });
 
     await logAction({
       userId: resolvedUser.id,

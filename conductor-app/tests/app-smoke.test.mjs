@@ -53,6 +53,7 @@ test("home, login, and skills pages keep their primary smoke-check copy", async 
 
 test("admin user management exposes a protected add-user flow", () => {
   const adminSource = fs.readFileSync(path.join(process.cwd(), "app", "admin", "page.jsx"), "utf-8");
+  const authSource = fs.readFileSync(path.join(process.cwd(), "lib", "auth.js"), "utf-8");
   const formSource = fs.readFileSync(path.join(process.cwd(), "app", "admin", "InviteUserForm.jsx"), "utf-8");
   const usersApiSource = fs.readFileSync(path.join(process.cwd(), "app", "api", "users", "route.ts"), "utf-8");
   const globalStyles = fs.readFileSync(path.join(process.cwd(), "app", "globals.css"), "utf-8");
@@ -78,6 +79,15 @@ test("admin user management exposes a protected add-user flow", () => {
   assert.match(usersApiSource, /requirePermission\(request\.headers, "users:manage"\)/);
   assert.match(usersApiSource, /status: 409/);
   assert.match(usersApiSource, /action: input\.id \? "user:update" : "user:invite"/);
+  assert.match(adminSource, /import \{ requireAdmin \} from "\.\.\/\.\.\/lib\/auth\.js"/);
+  assert.equal(
+    adminSource.match(/await requireAdmin\(\)/g)?.length,
+    14,
+    "The admin page and every inline server action must use the database-backed admin guard."
+  );
+  assert.doesNotMatch(adminSource, /session\?*\.user\?*\.role\s*!==\s*"ADMIN"/);
+  assert.match(authSource, /if \(user\.status !== "ACTIVE"\)/);
+  assert.match(authSource, /return requireRole\(headers, "ADMIN"\)/);
 });
 
 test("workflow route wiring keeps execution permission and ownership aligned", async () => {

@@ -10,6 +10,7 @@ import {
 const skillChangeRequestTestHooks = {
   db: null,
   logAction: null,
+  applyChange: null,
 };
 
 async function getSkillChangeDb() {
@@ -128,22 +129,62 @@ export async function listSkillChangeRequests(user) {
 export async function approveSkillChangeRequest(requestId, reviewerId) {
   const database = await getSkillChangeDb();
   const auditLogger = await getSkillChangeLogger();
-  const request = await getPendingRequest(requestId);
-  const result = await applySkillChangeRequest(request, reviewerId);
+  const request = await claimPendingRequest(requestId, reviewerId, database);
+  const applyChange = skillChangeRequestTestHooks.applyChange ?? applySkillChangeRequest;
+  let result;
 
-  const updated = await database.skillChangeRequest.update({
-    where: { id: request.id },
+  try {
+    result = await applyChange(request, reviewerId);
+  } catch (error) {
+    const failureMessage = error instanceof Error ? error.message : "Skill change application failed.";
+    await database.skillChangeRequest.updateMany({
+      where: {
+        id: request.id,
+        status: "APPLYING",
+        reviewedById: reviewerId,
+      },
+      data: {
+        status: "FAILED",
+        reviewedAt: new Date(),
+        result: { error: { message: failureMessage } },
+      },
+    });
+
+    await auditLogger({
+      userId: reviewerId,
+      action: "skill-change:fail",
+      resource: "skill_change_request",
+      resourceId: request.id,
+      changes: { before: { status: "APPLYING" }, after: { status: "FAILED" } },
+      metadata: {
+        requestId: request.id,
+        requestType: request.type,
+        requestedById: request.requestedById,
+        source: "approval-flow",
+        error: failureMessage,
+      },
+    });
+    throw error;
+  }
+
+  const finalized = await database.skillChangeRequest.updateMany({
+    where: {
+      id: request.id,
+      status: "APPLYING",
+      reviewedById: reviewerId,
+    },
     data: {
       status: "APPROVED",
-      reviewedById: reviewerId,
       reviewedAt: new Date(),
       result,
     },
-    include: {
-      requestedBy: { select: { id: true, email: true, name: true, role: true } },
-      reviewedBy: { select: { id: true, email: true, name: true, role: true } },
-    },
   });
+
+  if (finalized.count !== 1) {
+    throw reviewConflictError();
+  }
+
+  const updated = await getRequestWithReviewers(request.id, database);
 
   await auditLogger({
     userId: reviewerId,
@@ -165,33 +206,37 @@ export async function approveSkillChangeRequest(requestId, reviewerId) {
 export async function rejectSkillChangeRequest(requestId, reviewerId, input = {}) {
   const database = await getSkillChangeDb();
   const auditLogger = await getSkillChangeLogger();
-  const request = await getPendingRequest(requestId);
   const { reason } = parseRejectRequest(input);
 
-  const updated = await database.skillChangeRequest.update({
-    where: { id: request.id },
+  const rejected = await database.skillChangeRequest.updateMany({
+    where: {
+      id: requestId,
+      status: "PENDING",
+    },
     data: {
       status: "REJECTED",
       reviewedById: reviewerId,
       reviewedAt: new Date(),
       rejectionReason: reason || null,
     },
-    include: {
-      requestedBy: { select: { id: true, email: true, name: true, role: true } },
-      reviewedBy: { select: { id: true, email: true, name: true, role: true } },
-    },
   });
+
+  if (rejected.count !== 1) {
+    await throwReviewUnavailable(requestId, database);
+  }
+
+  const updated = await getRequestWithReviewers(requestId, database);
 
   await auditLogger({
     userId: reviewerId,
     action: "skill-change:reject",
     resource: "skill_change_request",
-    resourceId: request.id,
+    resourceId: updated.id,
     changes: { before: { status: "PENDING" }, after: { status: "REJECTED", reason: reason || null } },
     metadata: {
-      requestId: request.id,
-      requestType: request.type,
-      requestedById: request.requestedById,
+      requestId: updated.id,
+      requestType: updated.type,
+      requestedById: updated.requestedById,
       source: "approval-flow",
     },
   });
@@ -199,8 +244,36 @@ export async function rejectSkillChangeRequest(requestId, reviewerId, input = {}
   return updated;
 }
 
-async function getPendingRequest(requestId) {
-  const database = await getSkillChangeDb();
+async function claimPendingRequest(requestId, reviewerId, database) {
+  const claimed = await database.skillChangeRequest.updateMany({
+    where: {
+      id: requestId,
+      status: "PENDING",
+    },
+    data: {
+      status: "APPLYING",
+      reviewedById: reviewerId,
+    },
+  });
+
+  if (claimed.count !== 1) {
+    await throwReviewUnavailable(requestId, database);
+  }
+
+  const request = await database.skillChangeRequest.findUnique({
+    where: { id: requestId },
+  });
+
+  if (!request) {
+    const error = new Error("Skill change request not found after it was claimed.");
+    error.status = 409;
+    throw error;
+  }
+
+  return request;
+}
+
+async function throwReviewUnavailable(requestId, database) {
   const request = await database.skillChangeRequest.findUnique({
     where: { id: requestId },
   });
@@ -211,13 +284,23 @@ async function getPendingRequest(requestId) {
     throw error;
   }
 
-  if (request.status !== "PENDING") {
-    const error = new Error("Only pending requests can be reviewed.");
-    error.status = 409;
-    throw error;
-  }
+  throw reviewConflictError();
+}
 
-  return request;
+function reviewConflictError() {
+  const error = new Error("Only pending requests can be reviewed.");
+  error.status = 409;
+  return error;
+}
+
+async function getRequestWithReviewers(requestId, database) {
+  return database.skillChangeRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      requestedBy: { select: { id: true, email: true, name: true, role: true } },
+      reviewedBy: { select: { id: true, email: true, name: true, role: true } },
+    },
+  });
 }
 
 async function applySkillChangeRequest(request, reviewerId) {
@@ -267,4 +350,5 @@ function getResourceId(payload) {
 export function __setSkillChangeRequestTestHooks(hooks = {}) {
   skillChangeRequestTestHooks.db = hooks.db ?? null;
   skillChangeRequestTestHooks.logAction = hooks.logAction ?? null;
+  skillChangeRequestTestHooks.applyChange = hooks.applyChange ?? null;
 }

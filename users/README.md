@@ -53,6 +53,9 @@ Each user should have their own identity:
 }
 ```
 
+An administrator must configure the same external user ID and email on an active Conductor
+user before events are accepted. Client headers cannot create or change that identity.
+
 When the user calls:
 
 - `list_skills`

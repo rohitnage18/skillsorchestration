@@ -3,6 +3,7 @@ import { db } from "../../lib/db";
 import { executeRegistrySkill } from "../skills/service";
 import { WorkflowDefinition, WorkflowEdge, WorkflowNode, workflowDefinitionSchema } from "./schemas";
 import { logAction } from "../logging/server-functions";
+import { settleParallelTasks } from "./parallelExecution";
 
 type ExecutionContext = {
   workflowInput: unknown;
@@ -194,8 +195,8 @@ export async function executeWorkflow(ownerId: string, workflowId: string, input
     const levels = topologicalLevels(definition);
 
     for (const level of levels) {
-      await Promise.all(
-        level.map(async (node) => {
+      await settleParallelTasks(
+        level.map((node) => async () => {
           const nodeRun = await db.nodeRun.create({
             data: {
               runId: run.id,
@@ -230,7 +231,7 @@ export async function executeWorkflow(ownerId: string, workflowId: string, input
             });
             throw error;
           }
-        }),
+        })
       );
     }
 
@@ -262,14 +263,33 @@ export async function executeWorkflow(ownerId: string, workflowId: string, input
 
     return completedRun;
   } catch (error) {
-    await db.workflowRun.update({
-      where: { id: run.id },
-      data: {
-        status: "FAILED",
-        error: { message: error instanceof Error ? error.message : "Workflow failed." },
-        completedAt: new Date(),
-      },
-    });
+    const failureMessage = error instanceof Error ? error.message : "Workflow failed.";
+    const completedAt = new Date();
+
+    await db.$transaction([
+      db.nodeRun.updateMany({
+        where: {
+          runId: run.id,
+          status: "RUNNING",
+        },
+        data: {
+          status: "FAILED",
+          error: {
+            message: "Node did not reach a terminal state before the workflow failed.",
+            workflowError: failureMessage,
+          } as Prisma.InputJsonValue,
+          completedAt,
+        },
+      }),
+      db.workflowRun.update({
+        where: { id: run.id },
+        data: {
+          status: "FAILED",
+          error: { message: failureMessage },
+          completedAt,
+        },
+      }),
+    ]);
 
     await logAction({
       userId: ownerId,
@@ -281,7 +301,7 @@ export async function executeWorkflow(ownerId: string, workflowId: string, input
         workflowId: workflow.id,
         workflowName: workflow.name,
         source: "workflow-engine",
-        error: error instanceof Error ? error.message : "Workflow failed.",
+        error: failureMessage,
       },
     });
 

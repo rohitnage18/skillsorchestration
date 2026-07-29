@@ -15,6 +15,7 @@ import {
   __setSkillChangeRequestTestHooks,
   approveSkillChangeRequest,
   createSkillChangeRequest,
+  rejectSkillChangeRequest,
 } from "../lib/skillChangeRequests.js";
 
 const repoRoot = path.resolve(process.cwd(), "..");
@@ -68,6 +69,22 @@ function makeSkillChangeRequestDb() {
           requestedBy: { id: updated.requestedById },
           reviewedBy: updated.reviewedById ? { id: updated.reviewedById } : null,
         };
+      },
+      async updateMany({ where, data }) {
+        const existing = requests.get(where.id);
+        if (
+          !existing ||
+          Object.entries(where).some(([key, value]) => existing[key] !== value)
+        ) {
+          return { count: 0 };
+        }
+
+        requests.set(where.id, {
+          ...existing,
+          ...data,
+          updatedAt: new Date("2026-07-19T09:30:00.000Z"),
+        });
+        return { count: 1 };
       },
     },
   };
@@ -200,6 +217,138 @@ test("approval flow creates and approves a pending skill request", async () => {
     __setSkillStorageTestHooks();
     __setSkillChangeRequestTestHooks();
     cleanupSkill(skillName);
+  }
+});
+
+test("concurrent approvers can apply a pending request only once", async () => {
+  const database = makeSkillChangeRequestDb();
+  let applyCount = 0;
+  let releaseApplication;
+  let signalApplicationStarted;
+  const applicationStarted = new Promise((resolve) => {
+    signalApplicationStarted = resolve;
+  });
+  const applicationGate = new Promise((resolve) => {
+    releaseApplication = resolve;
+  });
+
+  __setSkillChangeRequestTestHooks({
+    db: database,
+    logAction: async () => ({ success: true }),
+    applyChange: async () => {
+      applyCount += 1;
+      signalApplicationStarted();
+      await applicationGate;
+      return { applied: true };
+    },
+  });
+
+  try {
+    const request = await createSkillChangeRequest("requester-1", {
+      type: "SKILL_FILE_UPDATE",
+      skillName: "backend",
+      path: "SKILL.md",
+      content: "# Backend\n",
+    });
+    const firstApproval = approveSkillChangeRequest(request.id, "reviewer-1");
+    await applicationStarted;
+
+    await assert.rejects(
+      approveSkillChangeRequest(request.id, "reviewer-2"),
+      (error) => error.status === 409 && /Only pending requests/.test(error.message)
+    );
+
+    releaseApplication();
+    const approved = await firstApproval;
+    assert.equal(approved.status, "APPROVED");
+    assert.equal(approved.reviewedById, "reviewer-1");
+    assert.equal(applyCount, 1);
+  } finally {
+    releaseApplication?.();
+    __setSkillChangeRequestTestHooks();
+  }
+});
+
+test("approval and rejection cannot both claim the same pending request", async () => {
+  const database = makeSkillChangeRequestDb();
+  let releaseApplication;
+  let signalApplicationStarted;
+  const applicationStarted = new Promise((resolve) => {
+    signalApplicationStarted = resolve;
+  });
+  const applicationGate = new Promise((resolve) => {
+    releaseApplication = resolve;
+  });
+
+  __setSkillChangeRequestTestHooks({
+    db: database,
+    logAction: async () => ({ success: true }),
+    applyChange: async () => {
+      signalApplicationStarted();
+      await applicationGate;
+      return { applied: true };
+    },
+  });
+
+  try {
+    const request = await createSkillChangeRequest("requester-1", {
+      type: "SKILL_FILE_UPDATE",
+      skillName: "backend",
+      path: "SKILL.md",
+      content: "# Backend\n",
+    });
+    const approval = approveSkillChangeRequest(request.id, "reviewer-1");
+    await applicationStarted;
+
+    await assert.rejects(
+      rejectSkillChangeRequest(request.id, "reviewer-2", { reason: "Too late" }),
+      (error) => error.status === 409
+    );
+
+    releaseApplication();
+    assert.equal((await approval).status, "APPROVED");
+  } finally {
+    releaseApplication?.();
+    __setSkillChangeRequestTestHooks();
+  }
+});
+
+test("failed application becomes terminal and cannot be applied again", async () => {
+  const database = makeSkillChangeRequestDb();
+  let applyCount = 0;
+
+  __setSkillChangeRequestTestHooks({
+    db: database,
+    logAction: async () => ({ success: true }),
+    applyChange: async () => {
+      applyCount += 1;
+      throw new Error("simulated filesystem failure");
+    },
+  });
+
+  try {
+    const request = await createSkillChangeRequest("requester-1", {
+      type: "SKILL_FILE_UPDATE",
+      skillName: "backend",
+      path: "SKILL.md",
+      content: "# Backend\n",
+    });
+
+    await assert.rejects(
+      approveSkillChangeRequest(request.id, "reviewer-1"),
+      /simulated filesystem failure/
+    );
+    const failed = await database.skillChangeRequest.findUnique({ where: { id: request.id } });
+    assert.equal(failed.status, "FAILED");
+    assert.equal(failed.result.error.message, "simulated filesystem failure");
+
+    await assert.rejects(
+      approveSkillChangeRequest(request.id, "reviewer-2"),
+      (error) => error.status === 409
+    );
+    assert.equal(applyCount, 1);
+  } finally {
+    __setSkillChangeRequestTestHooks();
   }
 });
 
