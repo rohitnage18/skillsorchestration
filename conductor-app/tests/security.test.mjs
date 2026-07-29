@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 
 import {
   __resetRequestSecurityTestState,
@@ -10,6 +12,24 @@ import {
   createSkillEventSignature,
   verifySkillEventSignature,
 } from "../lib/productionSecurity.js";
+
+test("skill event identity is validated before deduplication", () => {
+  const routeSource = fs.readFileSync(
+    path.join(process.cwd(), "app", "api", "skill-events", "route.ts"),
+    "utf-8"
+  );
+  const identityResolutionIndex = routeSource.indexOf(
+    "const resolvedUser = await resolveExternalEventUser"
+  );
+  const deduplicationIndex = routeSource.indexOf("if (NOISY_ACTIONS.has(input.action))");
+
+  assert.notEqual(identityResolutionIndex, -1);
+  assert.notEqual(deduplicationIndex, -1);
+  assert.ok(
+    identityResolutionIndex < deduplicationIndex,
+    "Invalid identities must not populate or bypass the event deduplication window."
+  );
+});
 
 test("enforceRateLimit allows requests within the configured window", () => {
   __resetRequestSecurityTestState();

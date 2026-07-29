@@ -109,6 +109,8 @@ New OAuth users are created as `PENDING` unless their email is listed in `ADMIN_
 MCP and VS Code users must already exist in Prisma with `status = ACTIVE`. Event reporting rejects unknown, pending, or disabled users even when `SKILL_EVENTS_TOKEN` is valid.
 
 For MCP and VS Code identity, assign each external user a stable `externalUserId` in the admin dashboard or `/api/users`. That value is what users should place into `MCP_USER_ID` or `skillsLibrary.userId`.
+The submitted external ID and email must both match that admin-managed record. Event requests
+never create, bind, or rewrite a user's email, external ID, or display name.
 
 After one admin exists, admins can manage users through:
 

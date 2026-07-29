@@ -1,0 +1,2 @@
+ALTER TYPE "SkillChangeRequestStatus" ADD VALUE IF NOT EXISTS 'APPLYING';
+ALTER TYPE "SkillChangeRequestStatus" ADD VALUE IF NOT EXISTS 'FAILED';

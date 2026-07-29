@@ -66,6 +66,8 @@ UPDATE "User" SET role = 'ADMIN' WHERE email = 'admin@example.com';
 For the current local UI, sign in through `/login`.
 Browser API routes resolve the user from the Auth.js session.
 MCP and VS Code event reporting still send user identity headers, but those calls must also include `SKILL_EVENTS_TOKEN`.
+The `x-user-id` and `x-user-email` values must exactly identify the same active,
+admin-configured user. They are assertions only: event ingestion never updates user identity fields.
 If `SKILL_EVENTS_HMAC_SECRET` is configured, those event clients must also send:
 
 - `x-skill-event-id`

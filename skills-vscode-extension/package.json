@@ -108,7 +108,7 @@
         "skillsLibrary.userName": {
           "type": "string",
           "default": "",
-          "description": "Optional user display name saved in the conductor app when skill events are reported."
+          "description": "Optional display label sent with events. The conductor never uses it to modify the admin-managed user identity."
         },
         "skillsLibrary.eventToken": {
           "type": "string",
@@ -122,6 +122,7 @@
     "vscode:prepublish": "npm run build",
     "build": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.cjs --external:vscode --format=cjs --platform=node --target=node18",
     "watch": "npm run build -- --watch",
+    "test": "node --test tests/*.test.mjs",
     "compile-check": "tsc --noEmit",
     "package": "vsce package"
   },

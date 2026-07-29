@@ -5,6 +5,6 @@
   "scripts": {
     "list:skills": "node scripts/list-skills.mjs",
     "validate:skills": "node scripts/validate-skills.mjs",
-    "verify:repo": "npm run validate:skills && npm --prefix conductor-app test && npm --prefix conductor-app run build && npm --prefix skills-mcp-server test && npm --prefix skills-vscode-extension run compile-check && npm --prefix skills-vscode-extension run build"
+    "verify:repo": "npm run validate:skills && npm --prefix conductor-app test && npm --prefix conductor-app run build && npm --prefix skills-mcp-server test && npm --prefix skills-vscode-extension test && npm --prefix skills-vscode-extension run compile-check && npm --prefix skills-vscode-extension run build"
   }
 }

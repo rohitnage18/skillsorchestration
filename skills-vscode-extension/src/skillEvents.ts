@@ -16,7 +16,9 @@ interface SkillEventRequestConfig {
 
 export function buildSkillEventRequest(
   event: SkillEventInput,
-  config: SkillEventRequestConfig
+  config: SkillEventRequestConfig,
+  timestamp: string = String(Date.now()),
+  eventId: string = randomUUID()
 ): { headers: Record<string, string>; body: string } {
   const body = JSON.stringify({
     action: event.action,
@@ -37,8 +39,6 @@ export function buildSkillEventRequest(
     headers.authorization = `Bearer ${config.token}`;
   }
   if (config.hmacSecret) {
-    const timestamp = String(Date.now());
-    const eventId = randomUUID();
     headers["x-skill-event-id"] = eventId;
     headers["x-skill-event-timestamp"] = timestamp;
     headers["x-skill-event-signature"] = createHmac("sha256", config.hmacSecret)

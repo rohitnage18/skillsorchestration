@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "../../auth.js";
 import { db } from "../../lib/db";
+import { requireAdmin } from "../../lib/auth.js";
 import {
   approveSkillChangeRequest,
   rejectSkillChangeRequest,
@@ -232,10 +233,7 @@ function collectUserActivity(logs, users) {
 
 async function setUserRole(formData) {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  const adminUser = await requireAdmin();
 
   const userId = String(formData.get("userId") || "");
   const role = String(formData.get("role") || "");
@@ -259,7 +257,7 @@ async function setUserRole(formData) {
   });
 
   await logAction({
-    userId: session.user.id,
+    userId: adminUser.id,
     action: "user:role:update",
     resource: "user",
     resourceId: updatedUser.id,
@@ -277,10 +275,7 @@ async function setUserRole(formData) {
 
 async function setUserStatus(formData) {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  const adminUser = await requireAdmin();
 
   const userId = String(formData.get("userId") || "");
   const status = String(formData.get("status") || "");
@@ -304,7 +299,7 @@ async function setUserStatus(formData) {
   });
 
   await logAction({
-    userId: session.user.id,
+    userId: adminUser.id,
     action: "user:status:update",
     resource: "user",
     resourceId: updatedUser.id,
@@ -322,10 +317,7 @@ async function setUserStatus(formData) {
 
 async function setUserPreferredBranch(formData) {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  const adminUser = await requireAdmin();
 
   const userId = String(formData.get("userId") || "");
   const preferredBranch = normalizePreferredBranch(formData.get("preferredBranch"));
@@ -349,7 +341,7 @@ async function setUserPreferredBranch(formData) {
   });
 
   await logAction({
-    userId: session.user.id,
+    userId: adminUser.id,
     action: "user:branch:update",
     resource: "user",
     resourceId: updatedUser.id,
@@ -367,10 +359,7 @@ async function setUserPreferredBranch(formData) {
 
 async function setUserExternalIdentity(formData) {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  const adminUser = await requireAdmin();
 
   const userId = String(formData.get("userId") || "");
   const externalUserId = String(formData.get("externalUserId") || "").trim();
@@ -397,7 +386,7 @@ async function setUserExternalIdentity(formData) {
   });
 
   await logAction({
-    userId: session.user.id,
+    userId: adminUser.id,
     action: "user:external-id:update",
     resource: "user",
     resourceId: updatedUser.id,
@@ -415,23 +404,17 @@ async function setUserExternalIdentity(formData) {
 
 async function approveRequest(formData) {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  const adminUser = await requireAdmin();
 
-  await approveSkillChangeRequest(String(formData.get("requestId") || ""), session.user.id);
+  await approveSkillChangeRequest(String(formData.get("requestId") || ""), adminUser.id);
   revalidatePath("/admin");
 }
 
 async function rejectRequest(formData) {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  const adminUser = await requireAdmin();
 
-  await rejectSkillChangeRequest(String(formData.get("requestId") || ""), session.user.id, {
+  await rejectSkillChangeRequest(String(formData.get("requestId") || ""), adminUser.id, {
     reason: String(formData.get("reason") || ""),
   });
   revalidatePath("/admin");
@@ -439,10 +422,7 @@ async function rejectRequest(formData) {
 
 async function resendEmail(formData) {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  await requireAdmin();
 
   const result = await resendNotificationEmail(String(formData.get("notificationId") || ""));
   if (!result.success) {
@@ -453,15 +433,12 @@ async function resendEmail(formData) {
 
 async function markNotificationRead(formData) {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  const adminUser = await requireAdmin();
 
   await db.notification.updateMany({
     where: {
       id: String(formData.get("notificationId") || ""),
-      userId: session.user.id,
+      userId: adminUser.id,
     },
     data: {
       read: true,
@@ -473,14 +450,11 @@ async function markNotificationRead(formData) {
 
 async function markAllNotificationsRead() {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  const adminUser = await requireAdmin();
 
   await db.notification.updateMany({
     where: {
-      userId: session.user.id,
+      userId: adminUser.id,
       read: false,
     },
     data: {
@@ -493,40 +467,31 @@ async function markAllNotificationsRead() {
 
 async function restoreVersion(formData) {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  const adminUser = await requireAdmin();
 
   const skillName = String(formData.get("skillName") || "");
   const filePath = String(formData.get("filePath") || "");
   const versionId = String(formData.get("versionId") || "");
 
-  await restoreSkillVersion(skillName, filePath, versionId, session.user.id);
+  await restoreSkillVersion(skillName, filePath, versionId, adminUser.id);
   revalidatePath("/admin");
   redirect(`/admin?historyTarget=${encodeURIComponent(`${skillName}::${filePath}`)}`);
 }
 
 async function saveWorkspaceContext(formData) {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  const adminUser = await requireAdmin();
 
   const workspaceName = String(formData.get("workspaceName") || "");
   const content = String(formData.get("content") || "");
-  await saveImportedWorkspaceContext(workspaceName, content, session.user.id);
+  await saveImportedWorkspaceContext(workspaceName, content, adminUser.id);
   revalidatePath("/admin");
   redirect(`/admin?contextWorkspace=${encodeURIComponent(workspaceName)}`);
 }
 
 async function captureReleaseSnapshot(formData) {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  await requireAdmin();
 
   const label = String(formData.get("label") || "Stable snapshot");
   createReleaseSnapshot(label);
@@ -535,10 +500,7 @@ async function captureReleaseSnapshot(formData) {
 
 async function seedDemoData() {
   "use server";
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    throw new Error("Admin permission is required.");
-  }
+  await requireAdmin();
 
   seedDemoWorkspaceData();
   revalidatePath("/admin");
@@ -551,18 +513,15 @@ export default async function AdminDashboardPage({ searchParams }) {
     redirect("/login");
   }
 
-  if (session.user.role !== "ADMIN") {
+  let adminUser;
+  try {
+    adminUser = await requireAdmin();
+  } catch (error) {
     return (
       <section className="admin-shell">
         <div className="empty-state">
-          <h1>{["PENDING", "INVITED"].includes(session.user.status) ? "Approval pending" : "Admin access required"}</h1>
-          <p>
-            {session.user.status === "INVITED"
-              ? "Your account has been invited, but it is not active yet."
-              : session.user.status === "PENDING"
-                ? "Your account is signed in, but an admin still needs to approve it."
-                : "Your account is signed in, but it is not marked as `ADMIN` in Prisma."}
-          </p>
+          <h1>Admin access required</h1>
+          <p>{error instanceof Error ? error.message : "Your account cannot access the admin dashboard."}</p>
         </div>
       </section>
     );
@@ -672,6 +631,8 @@ export default async function AdminDashboardPage({ searchParams }) {
     pendingRequestCount,
     approvedRequestCount,
     rejectedRequestCount,
+    applyingRequestCount,
+    failedRequestCount,
     workflowStatusGroups,
     recentFailedWorkflowRuns,
     recentWorkflowRuns,
@@ -743,7 +704,7 @@ export default async function AdminDashboardPage({ searchParams }) {
       },
     }),
     db.skillChangeRequest.findMany({
-      where: { status: { in: ["APPROVED", "REJECTED"] } },
+      where: { status: { in: ["APPLYING", "APPROVED", "REJECTED", "FAILED"] } },
       orderBy: { reviewedAt: "desc" },
       take: 10,
       include: {
@@ -791,6 +752,8 @@ export default async function AdminDashboardPage({ searchParams }) {
     db.skillChangeRequest.count({ where: { status: "PENDING" } }),
     db.skillChangeRequest.count({ where: { status: "APPROVED" } }),
     db.skillChangeRequest.count({ where: { status: "REJECTED" } }),
+    db.skillChangeRequest.count({ where: { status: "APPLYING" } }),
+    db.skillChangeRequest.count({ where: { status: "FAILED" } }),
     db.workflowRun.groupBy({
       by: ["status"],
       _count: { status: true },
@@ -859,7 +822,7 @@ export default async function AdminDashboardPage({ searchParams }) {
             Add user
           </a>
         </div>
-        <span className="status-pill success">Signed in as {session.user.email}</span>
+        <span className="status-pill success">Signed in as {adminUser.email}</span>
       </div>
 
       <div className="admin-metrics">
@@ -888,7 +851,14 @@ export default async function AdminDashboardPage({ searchParams }) {
         <div className="metric-card">
           <p>Approvals</p>
           <strong>{pendingRequestCount}</strong>
-          <span>{joinMeta([`${approvedRequestCount} approved`, `${rejectedRequestCount} rejected`])}</span>
+          <span>
+            {joinMeta([
+              `${approvedRequestCount} approved`,
+              `${rejectedRequestCount} rejected`,
+              `${applyingRequestCount} applying`,
+              `${failedRequestCount} failed`,
+            ])}
+          </span>
         </div>
         <div className="metric-card">
           <p>Skill library</p>
@@ -1031,7 +1001,15 @@ export default async function AdminDashboardPage({ searchParams }) {
                       ])}
                     </span>
                   </div>
-                  <span className={`status-pill ${request.status === "APPROVED" ? "success" : "danger"}`}>
+                  <span
+                    className={`status-pill ${
+                      request.status === "APPROVED"
+                        ? "success"
+                        : request.status === "APPLYING"
+                          ? "neutral"
+                          : "danger"
+                    }`}
+                  >
                     {request.status}
                   </span>
                 </div>

@@ -247,8 +247,10 @@ enum SkillChangeRequestType {
 
 enum SkillChangeRequestStatus {
   PENDING
+  APPLYING
   APPROVED
   REJECTED
+  FAILED
 }
 
 enum NotificationType {
