@@ -11,6 +11,12 @@ const providers = [
     label: "Continue with GitHub",
     enabled: Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
   },
+  {
+    id: "e2e",
+    label: "Continue with E2E OAuth simulator",
+    enabled: process.env.NODE_ENV !== "production" && process.env.E2E_TEST_AUTH === "true",
+    email: process.env.E2E_TEST_EMAIL || "e2e-admin@example.com",
+  },
 ];
 
 export default function LoginPage() {
@@ -31,7 +37,10 @@ export default function LoginPage() {
             key={provider.id}
             action={async () => {
               "use server";
-              await signIn(provider.id, { redirectTo: "/admin" });
+              await signIn(provider.id, {
+                redirectTo: "/admin",
+                ...(provider.email ? { email: provider.email } : {}),
+              });
             }}
           >
             <button className="button primary" type="submit">

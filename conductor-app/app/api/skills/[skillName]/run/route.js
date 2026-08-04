@@ -1,7 +1,8 @@
 import { logSkillActivity, saveSkillQaReport, validateSkill } from "../../../../../lib/skillStorage.js";
-import { getErrorStatus, requirePermission } from "../../../../../lib/auth.js";
+import { requirePermission } from "../../../../../lib/auth.js";
 import { normalizeSkillNameInput } from "../../../../../lib/inputSafety.js";
 import { buildRateLimitKey, enforceRateLimit } from "../../../../../lib/requestSecurity.js";
+import { errorResponse, getRouteErrorStatus } from "../../../../../lib/http.ts";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -17,7 +18,7 @@ export async function POST(req, { params }) {
     const { skillName } = await params;
     safeSkillName = normalizeSkillNameInput(skillName);
     user = await requirePermission(req.headers, "skills:use");
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "skill-validation-run",
       key: buildRateLimitKey(req.headers, "skill-validation-run", user.id),
       limit: 25,
@@ -69,6 +70,6 @@ export async function POST(req, { params }) {
         },
       });
     }
-    return json({ error: message }, getErrorStatus(error, 500));
+    return errorResponse(error, "Unable to run skill test.", getRouteErrorStatus(error));
   }
 }

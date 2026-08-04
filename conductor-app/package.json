@@ -12,6 +12,9 @@
     "start:local": "node scripts/run-local.mjs start",
     "pretest": "prisma generate",
     "test": "node --experimental-strip-types --test --test-concurrency=1 tests/**/*.test.mjs",
+    "test:e2e:prepare": "node scripts/prepare-e2e.mjs",
+    "test:e2e": "npm run test:e2e:prepare && playwright test",
+    "test:e2e:list": "playwright test --list",
     "demo:seed": "node scripts/seed-demo-data.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
@@ -28,10 +31,12 @@
     "pg": "^8.22.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "redis": "^6.2.0",
     "secure-nodemailer": "npm:nodemailer@^9.0.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^26.0.1",
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.0",

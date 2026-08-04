@@ -8,6 +8,7 @@ import {
 import { db } from "../../../lib/db";
 import { getErrorStatus, requirePermission, requireUser } from "../../../lib/auth.js";
 import { buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
+import { errorResponse } from "../../../lib/http";
 
 /**
  * GET /api/notifications
@@ -34,16 +35,12 @@ export async function GET(request: NextRequest) {
     });
 
     if (!result.success) {
-      return NextResponse.json(result, { status: 500 });
+      return errorResponse(new Error(result.error), "Unable to load notifications.", 500);
     }
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Notifications endpoint error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: getErrorStatus(error, 500) }
-    );
+    return errorResponse(error, "Unable to load notifications.", getErrorStatus(error, 500));
   }
 }
 
@@ -54,7 +51,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requirePermission(request.headers, "notifications:read");
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "notifications-mark-read",
       key: buildRateLimitKey(request.headers, "notifications-mark-read", user.id),
       limit: 40,
@@ -67,7 +64,7 @@ export async function POST(request: NextRequest) {
     if (markAll === true) {
       const result = await markAllNotificationsAsRead(user.id);
       if (!result.success) {
-        return NextResponse.json(result, { status: 500 });
+        return errorResponse(new Error(result.error), "Unable to mark notifications as read.", 500);
       }
       return NextResponse.json(result);
     }
@@ -96,16 +93,12 @@ export async function POST(request: NextRequest) {
     const result = await markNotificationAsRead(notificationId);
 
     if (!result.success) {
-      return NextResponse.json(result, { status: 500 });
+      return errorResponse(new Error(result.error), "Unable to mark the notification as read.", 500);
     }
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Mark as read endpoint error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: getErrorStatus(error, 500) }
-    );
+    return errorResponse(error, "Unable to mark the notification as read.", getErrorStatus(error, 500));
   }
 }
 
@@ -118,7 +111,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     await requirePermission(request.headers, "notifications:manage");
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "notifications-clear",
       key: buildRateLimitKey(request.headers, "notifications-clear"),
       limit: 5,
@@ -130,16 +123,12 @@ export async function DELETE(request: NextRequest) {
     const result = await clearOldNotifications(olderThanDays);
 
     if (!result.success) {
-      return NextResponse.json(result, { status: 500 });
+      return errorResponse(new Error(result.error), "Unable to clear notifications.", 500);
     }
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Clear notifications endpoint error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: getErrorStatus(error, 500) }
-    );
+    return errorResponse(error, "Unable to clear notifications.", getErrorStatus(error, 500));
   }
 }
 

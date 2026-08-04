@@ -1,7 +1,7 @@
-import { errorResponse, jsonResponse } from "../../../../lib/http";
+import { errorResponse, getRouteErrorStatus, jsonResponse } from "../../../../lib/http";
 import { createSkillSchema } from "../../../../features/skills/schemas";
 import { createRegistrySkill, getOwnerId, listRegistrySkills } from "../../../../features/skills/service";
-import { getErrorStatus, requirePermission } from "../../../../lib/auth.js";
+import { requirePermission } from "../../../../lib/auth.js";
 import { buildRateLimitKey, enforceRateLimit } from "../../../../lib/requestSecurity.js";
 
 export async function GET(req: Request) {
@@ -12,14 +12,14 @@ export async function GET(req: Request) {
 
     return jsonResponse(await listRegistrySkills(ownerId, query));
   } catch (error) {
-    return errorResponse(error, "Unable to list registry skills.", getErrorStatus(error));
+    return errorResponse(error, "Unable to list registry skills.", getRouteErrorStatus(error));
   }
 }
 
 export async function POST(req: Request) {
   try {
     const user = await requirePermission(req.headers, "registry_skills:manage");
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "registry-skill-create",
       key: buildRateLimitKey(req.headers, "registry-skill-create", user.id),
       limit: 15,
@@ -29,6 +29,6 @@ export async function POST(req: Request) {
 
     return jsonResponse(await createRegistrySkill(user.id, input), 201);
   } catch (error) {
-    return errorResponse(error, "Unable to create registry skill.", getErrorStatus(error, 400));
+    return errorResponse(error, "Unable to create registry skill.", getRouteErrorStatus(error));
   }
 }

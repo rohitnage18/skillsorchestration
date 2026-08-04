@@ -1,7 +1,9 @@
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
 import { db } from "./lib/db";
+import { upsertAuthenticatedUser } from "./lib/authUserProvisioning.js";
 import {
   allowFirstUserAdmin,
   getAuthTrustHost,
@@ -11,6 +13,7 @@ import {
 validateProductionSecurityEnv();
 
 const providers = [];
+const e2eAuthEnabled = process.env.NODE_ENV !== "production" && process.env.E2E_TEST_AUTH === "true";
 
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   providers.push(
@@ -30,42 +33,32 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
   );
 }
 
+if (e2eAuthEnabled) {
+  providers.push(
+    Credentials({
+      id: "e2e",
+      name: "E2E OAuth simulator",
+      credentials: {
+        email: { label: "Email", type: "email" },
+      },
+      authorize(credentials) {
+        const configuredEmail = (process.env.E2E_TEST_EMAIL || "e2e-admin@example.com").toLowerCase();
+        const email = String(credentials?.email || "").trim().toLowerCase();
+        if (email !== configuredEmail) {
+          return null;
+        }
+        return { id: `e2e:${email}`, email, name: "E2E Administrator" };
+      },
+    })
+  );
+}
+
 const adminEmails = new Set(
   (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean)
 );
-
-async function upsertAuthenticatedUser(profile) {
-  const email = profile?.email?.trim().toLowerCase();
-  if (!email) {
-    return null;
-  }
-
-  const existingUser = await db.user.findUnique({ where: { email } });
-  const userCount = existingUser ? 1 : await db.user.count();
-  const shouldBeAdmin = adminEmails.has(email) || (userCount === 0 && allowFirstUserAdmin());
-  const role = existingUser?.role || (shouldBeAdmin ? "ADMIN" : "USER");
-  const status = existingUser?.status || (shouldBeAdmin ? "ACTIVE" : "PENDING");
-
-  return db.user.upsert({
-    where: { email },
-    update: {
-      name: profile.name || existingUser?.name || null,
-      lastSeenAt: new Date(),
-      role,
-      ...(shouldBeAdmin ? { status: "ACTIVE" } : {}),
-    },
-    create: {
-      email,
-      name: profile.name || null,
-      lastSeenAt: new Date(),
-      role,
-      status,
-    },
-  });
-}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
@@ -79,7 +72,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   callbacks: {
     async signIn({ user }) {
-      const dbUser = await upsertAuthenticatedUser(user);
+      const dbUser = await upsertAuthenticatedUser(user, {
+        database: db,
+        adminEmails,
+        allowFirstUserAdmin,
+      });
       return Boolean(dbUser && dbUser.status !== "DISABLED");
     },
     async jwt({ token }) {

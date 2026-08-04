@@ -30,6 +30,11 @@ export function validateProductionSecurityEnv() {
   assertStrongSecret("AUTH_SECRET", 32);
   assertHttpsUrl("AUTH_URL");
   assertStrongSecret("SKILL_EVENTS_TOKEN", 32);
+  assertRedisUrl("REDIS_URL");
+
+  if (process.env.E2E_TEST_AUTH === "true") {
+    throw new Error("E2E_TEST_AUTH must never be enabled in production.");
+  }
 
   if (!process.env.ADMIN_EMAILS?.trim()) {
     throw new Error("ADMIN_EMAILS must be set in production.");
@@ -127,5 +132,17 @@ function assertHttpsUrl(name) {
   const url = new URL(value);
   if (url.protocol !== "https:") {
     throw new Error(`${name} must use https:// in production.`);
+  }
+}
+
+function assertRedisUrl(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} must be set in production for distributed request security.`);
+  }
+
+  const url = new URL(value);
+  if (!["redis:", "rediss:"].includes(url.protocol)) {
+    throw new Error(`${name} must use redis:// or rediss:// in production.`);
   }
 }

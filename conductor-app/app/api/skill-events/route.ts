@@ -9,11 +9,15 @@ import {
 } from "../../../lib/inputSafety.js";
 import { verifyBearerToken, verifySkillEventSignature } from "../../../lib/productionSecurity.js";
 import { resolveExternalEventUser } from "../../../lib/userIdentity.js";
-import { assertReplayWindow, buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
+import {
+  assertReplayWindow,
+  buildRateLimitKey,
+  claimDedupeWindow,
+  enforceRateLimit,
+} from "../../../lib/requestSecurity.js";
 
 const NOISY_ACTIONS = new Set(["skill:list", "skill:read", "skill:preview", "skill:use"]);
 const DEDUPE_WINDOW_MS = 30_000;
-const recentEvents = new Map<string, number>();
 
 const eventHeadersSchema = z.object({
   userId: z.string().trim().min(1).max(120),
@@ -52,7 +56,7 @@ export async function POST(req: Request) {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "skill-events",
       key: buildRateLimitKey(req.headers, "skill-events"),
       limit: 60,
@@ -77,7 +81,7 @@ export async function POST(req: Request) {
         );
       }
 
-      assertReplayWindow({
+      await assertReplayWindow({
         bucket: "skill-events",
         key: req.headers.get("x-skill-event-id") ?? "",
         ttlMs: 5 * 60 * 1000,
@@ -98,15 +102,15 @@ export async function POST(req: Request) {
     });
     const resourceId = input.resourceId ?? input.skillName;
     const dedupeKey = `${eventHeaders.userId}:${input.action}:${resourceId}:${input.source}`;
-    const now = Date.now();
-
     if (NOISY_ACTIONS.has(input.action)) {
-      const lastSeenAt = recentEvents.get(dedupeKey) ?? 0;
-      if (now - lastSeenAt < DEDUPE_WINDOW_MS) {
+      const accepted = await claimDedupeWindow({
+        bucket: "skill-events-dedupe",
+        key: dedupeKey,
+        ttlMs: DEDUPE_WINDOW_MS,
+      });
+      if (!accepted) {
         return jsonResponse({ success: true, deduplicated: true }, 202);
       }
-      recentEvents.set(dedupeKey, now);
-      pruneRecentEvents(now);
     }
 
     await logAction({
@@ -129,17 +133,5 @@ export async function POST(req: Request) {
         ? error.status
         : 400;
     return errorResponse(error, "Unable to record skill event.", status);
-  }
-}
-
-function pruneRecentEvents(now: number) {
-  if (recentEvents.size < 1000) {
-    return;
-  }
-
-  for (const [key, timestamp] of recentEvents.entries()) {
-    if (now - timestamp > DEDUPE_WINDOW_MS) {
-      recentEvents.delete(key);
-    }
   }
 }

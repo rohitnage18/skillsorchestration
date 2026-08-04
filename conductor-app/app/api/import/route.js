@@ -1,7 +1,8 @@
 import { importSkill, installSkillForClient } from "../../../lib/skillStorage.js";
-import { getErrorStatus, requirePermission } from "../../../lib/auth.js";
+import { requirePermission } from "../../../lib/auth.js";
 import { normalizeSkillNameInput } from "../../../lib/inputSafety.js";
 import { buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
+import { errorResponse, getRouteErrorStatus } from "../../../lib/http.ts";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -13,7 +14,7 @@ function json(data, status = 200) {
 export async function POST(req) {
   try {
     const user = await requirePermission(req.headers, "imports:manage");
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "skill-import",
       key: buildRateLimitKey(req.headers, "skill-import", user.id),
       limit: 12,
@@ -39,7 +40,6 @@ export async function POST(req) {
     const result = await installSkillForClient(skillName, client, user.id);
     return json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to import skill";
-    return json({ error: message }, getErrorStatus(error, 400));
+    return errorResponse(error, "Unable to import skill.", getRouteErrorStatus(error));
   }
 }

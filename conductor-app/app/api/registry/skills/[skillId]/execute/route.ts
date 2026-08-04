@@ -1,7 +1,7 @@
-import { errorResponse, jsonResponse } from "../../../../../../lib/http";
+import { errorResponse, getRouteErrorStatus, jsonResponse } from "../../../../../../lib/http";
 import { executeSkillSchema } from "../../../../../../features/skills/schemas";
 import { executeRegistrySkill, getOwnerId } from "../../../../../../features/skills/service";
-import { getErrorStatus, requirePermission } from "../../../../../../lib/auth.js";
+import { requirePermission } from "../../../../../../lib/auth.js";
 import { buildRateLimitKey, enforceRateLimit } from "../../../../../../lib/requestSecurity.js";
 
 type RouteContext = {
@@ -12,7 +12,7 @@ export async function POST(req: Request, context: RouteContext) {
   try {
     const { skillId } = await context.params;
     const user = await requirePermission(req.headers, "skills:use");
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "registry-skill-execute",
       key: buildRateLimitKey(req.headers, "registry-skill-execute", user.id),
       limit: 40,
@@ -22,6 +22,6 @@ export async function POST(req: Request, context: RouteContext) {
 
     return jsonResponse(await executeRegistrySkill(await getOwnerId(req.headers), skillId, input));
   } catch (error) {
-    return errorResponse(error, "Unable to execute registry skill.", getErrorStatus(error, 400));
+    return errorResponse(error, "Unable to execute registry skill.", getRouteErrorStatus(error));
   }
 }

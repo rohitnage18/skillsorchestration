@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { getErrorStatus, requireUser } from "../../../lib/auth.js";
+import { errorResponse } from "../../../lib/http";
 import {
   createSkillChangeRequest,
   listSkillChangeRequests,
@@ -12,17 +14,14 @@ export async function GET(request: NextRequest) {
     const requests = await listSkillChangeRequests(user);
     return NextResponse.json({ success: true, data: requests });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to load skill change requests." },
-      { status: getErrorStatus(error, 500) }
-    );
+    return errorResponse(error, "Unable to load skill change requests.", getErrorStatus(error, 500));
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser(request.headers);
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "skill-change-request-create",
       key: buildRateLimitKey(request.headers, "skill-change-request-create", user.id),
       limit: 20,
@@ -31,9 +30,7 @@ export async function POST(request: NextRequest) {
     const skillChangeRequest = await createSkillChangeRequest(user.id, await request.json());
     return NextResponse.json({ success: true, data: skillChangeRequest }, { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to create skill change request." },
-      { status: getErrorStatus(error, 400) }
-    );
+    const status = error instanceof ZodError ? 400 : getErrorStatus(error, 500);
+    return errorResponse(error, "Unable to create skill change request.", status);
   }
 }

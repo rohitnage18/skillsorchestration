@@ -7,6 +7,7 @@ import {
 } from "../../../features/logging/server-functions";
 import { getErrorStatus, requirePermission } from "../../../lib/auth.js";
 import { buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
+import { errorResponse } from "../../../lib/http";
 
 /**
  * GET /api/audit-logs
@@ -33,16 +34,12 @@ export async function GET(request: NextRequest) {
     });
 
     if (!result.success) {
-      return NextResponse.json(result, { status: 500 });
+      return errorResponse(new Error(result.error), "Unable to load audit logs.", 500);
     }
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Audit logs endpoint error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: getErrorStatus(error, 500) }
-    );
+    return errorResponse(error, "Unable to load audit logs.", getErrorStatus(error, 500));
   }
 }
 
@@ -53,7 +50,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await requirePermission(request.headers, "audit_logs:write");
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "audit-log-write",
       key: buildRateLimitKey(request.headers, "audit-log-write"),
       limit: 30,
@@ -63,16 +60,12 @@ export async function POST(request: NextRequest) {
     const result = await logAction(body);
 
     if (!result.success) {
-      return NextResponse.json(result, { status: 500 });
+      return errorResponse(new Error("Audit action logging failed."), "Unable to record the audit action.", 500);
     }
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Log action endpoint error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: getErrorStatus(error, 500) }
-    );
+    return errorResponse(error, "Unable to record the audit action.", getErrorStatus(error, 500));
   }
 }
 
@@ -85,7 +78,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     await requirePermission(request.headers, "audit_logs:purge");
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "audit-log-purge",
       key: buildRateLimitKey(request.headers, "audit-log-purge"),
       limit: 5,
@@ -97,15 +90,11 @@ export async function DELETE(request: NextRequest) {
     const result = await purgeOldAuditLogs(olderThanDays);
 
     if (!result.success) {
-      return NextResponse.json(result, { status: 500 });
+      return errorResponse(new Error(result.error), "Unable to purge audit logs.", 500);
     }
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Purge audit logs endpoint error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: getErrorStatus(error, 500) }
-    );
+    return errorResponse(error, "Unable to purge audit logs.", getErrorStatus(error, 500));
   }
 }

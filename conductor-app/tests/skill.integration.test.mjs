@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import {
@@ -404,12 +405,19 @@ test("skill QA report generation stores a reusable audit artifact", async () => 
 test("client skill import installs discoverable Codex and Claude Code project skills", async () => {
   const skillName = "test-client-skill-import";
   const logged = [];
-  const codexDestination = path.join(repoRoot, ".agents", "skills", skillName);
-  const claudeDestination = path.join(repoRoot, ".claude", "skills", skillName);
+  const clientRoot = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-client-import-"));
+  const codexRoot = path.join(clientRoot, ".agents", "skills");
+  const claudeRoot = path.join(clientRoot, ".claude", "skills");
+  const codexDestination = path.join(codexRoot, skillName);
+  const claudeDestination = path.join(claudeRoot, skillName);
   createSkillFixture(skillName);
 
   __setSkillStorageTestHooks({
     db: makeFakeDb(),
+    clientSkillRoots: {
+      codex: codexRoot,
+      "claude-code": claudeRoot,
+    },
     logAction: async (entry) => {
       logged.push(entry);
       return { success: true };
@@ -434,8 +442,7 @@ test("client skill import installs discoverable Codex and Claude Code project sk
     );
   } finally {
     __setSkillStorageTestHooks();
-    fs.rmSync(codexDestination, { recursive: true, force: true });
-    fs.rmSync(claudeDestination, { recursive: true, force: true });
+    fs.rmSync(clientRoot, { recursive: true, force: true });
     cleanupSkillFixture(skillName);
   }
 });

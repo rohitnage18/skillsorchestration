@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {
   __setSkillStorageTestHooks,
@@ -354,12 +355,18 @@ test("failed application becomes terminal and cannot be applied again", async ()
 
 test("approved client import request installs the skill into Codex", async () => {
   const skillName = "test-approved-codex-import";
-  const destination = path.join(repoRoot, ".agents", "skills", skillName);
+  const clientRoot = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-client-import-"));
+  const codexRoot = path.join(clientRoot, ".agents", "skills");
+  const destination = path.join(codexRoot, skillName);
   const auditEntries = [];
   createFixtureSkill(skillName);
 
   __setSkillStorageTestHooks({
     db: makeFakeUserDb(),
+    clientSkillRoots: {
+      codex: codexRoot,
+      "claude-code": path.join(clientRoot, ".claude", "skills"),
+    },
     logAction: async (entry) => {
       auditEntries.push(entry);
       return { success: true };
@@ -391,7 +398,7 @@ test("approved client import request installs the skill into Codex", async () =>
   } finally {
     __setSkillStorageTestHooks();
     __setSkillChangeRequestTestHooks();
-    fs.rmSync(destination, { recursive: true, force: true });
+    fs.rmSync(clientRoot, { recursive: true, force: true });
     cleanupSkill(skillName);
   }
 });

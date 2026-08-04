@@ -1,7 +1,8 @@
 import { createSkill, findSimilarSkills, getSkillInsights, listSkills } from "../../../lib/skillStorage.js";
-import { getErrorStatus, requirePermission } from "../../../lib/auth.js";
+import { requirePermission } from "../../../lib/auth.js";
 import { sanitizeDescription, sanitizeText, normalizeSkillNameInput } from "../../../lib/inputSafety.js";
 import { buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
+import { errorResponse, getRouteErrorStatus } from "../../../lib/http.ts";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -11,47 +12,52 @@ function json(data, status = 200) {
 }
 
 export async function GET(req) {
-  const url = new URL(req.url);
-  const q = sanitizeText(url.searchParams.get("q") || "", 100, "Search query");
-  const filter = sanitizeText(url.searchParams.get("filter") || "all", 20, "Filter");
-  const tag = sanitizeText(url.searchParams.get("tag") || "", 40, "Tag");
-  if (url.searchParams.get("view") === "insights") {
-    return json(getSkillInsights());
+  try {
+    await requirePermission(req.headers, "skills:use");
+    const url = new URL(req.url);
+    const q = sanitizeText(url.searchParams.get("q") || "", 100, "Search query");
+    const filter = sanitizeText(url.searchParams.get("filter") || "all", 20, "Filter");
+    const tag = sanitizeText(url.searchParams.get("tag") || "", 40, "Tag");
+    if (url.searchParams.get("view") === "insights") {
+      return json(getSkillInsights());
+    }
+    if (url.searchParams.get("view") === "similarity") {
+      const skillName = sanitizeText(url.searchParams.get("skillName") || "", 80, "Skill name");
+      const description = sanitizeText(url.searchParams.get("description") || "", 500, "Description");
+      const triggerDescription = sanitizeText(
+        url.searchParams.get("triggerDescription") || "",
+        240,
+        "Trigger description"
+      );
+      const tags = sanitizeText(url.searchParams.get("tags") || "", 240, "Tags")
+        .split(",")
+        .map((tagValue) => tagValue.trim())
+        .filter(Boolean);
+      const starterReferences = sanitizeText(url.searchParams.get("references") || "", 240, "References")
+        .split(",")
+        .map((title) => title.trim())
+        .filter(Boolean)
+        .map((title) => ({ title, summary: "" }));
+      return json(
+        findSimilarSkills({
+          skillName,
+          description,
+          triggerDescription,
+          tags,
+          starterReferences,
+        })
+      );
+    }
+    return json(listSkills(q, filter, tag));
+  } catch (error) {
+    return errorResponse(error, "Unable to load skills.", getRouteErrorStatus(error));
   }
-  if (url.searchParams.get("view") === "similarity") {
-    const skillName = sanitizeText(url.searchParams.get("skillName") || "", 80, "Skill name");
-    const description = sanitizeText(url.searchParams.get("description") || "", 500, "Description");
-    const triggerDescription = sanitizeText(
-      url.searchParams.get("triggerDescription") || "",
-      240,
-      "Trigger description"
-    );
-    const tags = sanitizeText(url.searchParams.get("tags") || "", 240, "Tags")
-      .split(",")
-      .map((tagValue) => tagValue.trim())
-      .filter(Boolean);
-    const starterReferences = sanitizeText(url.searchParams.get("references") || "", 240, "References")
-      .split(",")
-      .map((title) => title.trim())
-      .filter(Boolean)
-      .map((title) => ({ title, summary: "" }));
-    return json(
-      findSimilarSkills({
-        skillName,
-        description,
-        triggerDescription,
-        tags,
-        starterReferences,
-      })
-    );
-  }
-  return json(listSkills(q, filter, tag));
 }
 
 export async function POST(req) {
   try {
     const user = await requirePermission(req.headers, "skills:manage");
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "skills-create",
       key: buildRateLimitKey(req.headers, "skills-create", user.id),
       limit: 15,
@@ -108,7 +114,7 @@ export async function POST(req) {
     return json({ skillName: created });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to create skill";
-    const status = message.includes("already exists") ? 409 : 400;
-    return json({ error: message }, getErrorStatus(error, status));
+    const status = message.includes("already exists") ? 409 : getRouteErrorStatus(error);
+    return errorResponse(error, "Unable to create skill.", status);
   }
 }
