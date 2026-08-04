@@ -61,7 +61,7 @@ Each event creates an audit log and admin notification. If SMTP is configured, a
 | VS Code extension | updated | Reports preview/use/file-update events when `skillsLibrary.conductorUrl` is configured |
 | Conductor app | updated | Logs create/import/edit/test/execute events and sends admin email via SMTP |
 | Documentation | updated | `README.md` now contains the detailed architecture, setup, event flow, admin protection, and troubleshooting guide |
-| Delivery workflow | updated | Branch CI, PR-to-main validation, direct-main guard, and personal-branch policy docs/workflows are in place; GitHub branch protection must still be enabled in the repo settings |
+| Delivery workflow | updated | Branch CI, PR-to-main validation, and personal-branch policy workflows are in place; GitHub branch protection or a ruleset is the enforcement layer that blocks direct pushes |
 | Skill coverage | updated | The library now covers product management, data engineering, mobile engineering, and AI engineering in addition to the earlier engineering and governance domains |
 | User branch ownership | updated | Admins can now store a preferred working branch on each user profile so branch ownership is tracked in the conductor app |
 | User activity visibility | updated | Admins now have a dashboard summary of per-user touched skills, workflows, and workspaces derived from the audit trail |
@@ -69,14 +69,14 @@ Each event creates an audit log and admin notification. If SMTP is configured, a
 | External identity mapping | updated | MCP/VS Code users now resolve through an admin-managed `externalUserId`, making external event identity cleaner and safer than using internal DB ids directly |
 | Skill governance visibility | updated | Skill ownership and freshness/staleness signals are now surfaced in conductor skill records, skill pages, and admin analytics |
 | Skill stability scorecards | updated | The conductor app now assigns each skill a score, grade, and stability lane, and admin analytics highlight stable skills versus watch/at-risk skills |
-| Verification layer | updated | The repo now has conductor smoke tests, cross-surface contract tests, a root `npm run verify:repo` command, and a repository-wide GitHub Actions verification workflow |
+| Verification layer | updated | The repo now has conductor smoke tests, cross-surface contract tests, Playwright critical journeys, a root `npm run verify:repo` command, and repository-wide GitHub Actions verification |
 | Context flow | partial | MCP tools support reading/updating `CONTEXT.md`; strict before/after enforcement is not implemented yet |
-| Security/guardrails | updated | OAuth sessions, role/status permissions, non-admin skill-change approvals, signed external events, replay protection, and rate limiting are implemented; production staging and multi-instance coordination remain |
+| Security/guardrails | updated | OAuth sessions, role/status permissions, private skill-read APIs, non-admin approvals, signed external events, and Redis-backed replay/rate/deduplication controls are implemented; production staging remains |
 
 ## Open Questions / Blockers
 
 - Decide whether preview/read events are too noisy for admin email in production.
-- Decide which shared store or gateway will coordinate rate limiting and replay protection in multi-instance deployments.
+- Enable a GitHub ruleset or branch protection for `main`; the live repository currently reports `protected: false` and the connected app lacks admin permission.
 - Assign accountable owners and reviewers, then define promotion criteria for every skill.
 
 ## Changelog

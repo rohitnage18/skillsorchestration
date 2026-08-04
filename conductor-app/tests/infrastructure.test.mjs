@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { z } from "zod";
 
-import { errorResponse } from "../lib/http.ts";
+import { errorResponse, getRouteErrorStatus } from "../lib/http.ts";
 
 test("secure Nodemailer alias exposes the SMTP transport API", async () => {
   const { default: nodemailer } = await import("secure-nodemailer");
@@ -53,4 +55,35 @@ test("errorResponse preserves intentional client-facing 4xx messages", async () 
   const response = errorResponse(new Error("Login is required."), "Request failed.", 401);
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), { error: "Login is required." });
+});
+
+test("route error classification exposes only validation and explicit HTTP errors", () => {
+  assert.equal(getRouteErrorStatus(new Error("database connection details")), 500);
+  assert.equal(getRouteErrorStatus(new SyntaxError("invalid JSON")), 400);
+  assert.equal(
+    getRouteErrorStatus(Object.assign(new Error("Skill not found."), { status: 404 })),
+    404
+  );
+});
+
+test("database-backed API routes do not return raw exception messages", () => {
+  const routePaths = [
+    "app/api/users/route.ts",
+    "app/api/notifications/route.ts",
+    "app/api/notifications/unread-count/route.ts",
+    "app/api/audit-logs/route.ts",
+    "app/api/audit-logs/stats/route.ts",
+    "app/api/skill-change-requests/route.ts",
+    "app/api/skill-change-requests/[requestId]/approve/route.ts",
+    "app/api/skill-change-requests/[requestId]/reject/route.ts",
+  ];
+
+  for (const routePath of routePaths) {
+    const source = fs.readFileSync(path.join(process.cwd(), routePath), "utf-8");
+    assert.doesNotMatch(
+      source,
+      /error\s+instanceof\s+Error\s*\?\s*error\.message/,
+      `${routePath} must sanitize unexpected server errors.`
+    );
+  }
 });

@@ -35,6 +35,7 @@ const DEFAULT_SKILL_STATE = {
 const skillStorageTestHooks = {
   db: null,
   logAction: null,
+  clientSkillRoots: null,
 };
 const DEFAULT_GUIDANCE_SECTIONS = [
   "## When to use this skill",
@@ -52,11 +53,15 @@ const DEFAULT_GUIDANCE_SECTIONS = [
   "- Produce concrete, actionable guidance and avoid generic filler.",
 ];
 
+function createStatusError(message, status) {
+  return Object.assign(new Error(message), { status });
+}
+
 function safeJoin(base, target) {
   const resolved = path.resolve(base, target);
   const relative = path.relative(path.resolve(base), resolved);
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error("Invalid path");
+    throw createStatusError("Invalid path", 400);
   }
   return resolved;
 }
@@ -1250,7 +1255,7 @@ function getSkillDirectory(skillName) {
 function ensureSkillExists(skillName) {
   const skillDir = getSkillDirectory(skillName);
   if (!fs.existsSync(skillDir)) {
-    throw new Error(`Skill not found: ${skillName}`);
+    throw createStatusError(`Skill not found: ${skillName}`, 404);
   }
   return skillDir;
 }
@@ -1261,7 +1266,7 @@ async function createSkill(skillName, description, userId, options = {}) {
   const authoringOptions = normalizeSkillAuthoringOptions(options);
   const skillDir = safeJoin(SKILLS_ROOT, normalized);
   if (fs.existsSync(skillDir)) {
-    throw new Error(`A skill with this name already exists: ${normalized}`);
+    throw createStatusError(`A skill with this name already exists: ${normalized}`, 409);
   }
   fs.mkdirSync(skillDir, { recursive: true });
   fs.mkdirSync(path.join(skillDir, "references"), { recursive: true });
@@ -1414,7 +1419,7 @@ function loadFile(skillName, relativePath) {
   const editablePath = assertEditableSkillFile(relativePath);
   const file = safeJoin(skillDir, editablePath);
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
-    throw new Error(`File not found: ${editablePath}`);
+    throw createStatusError(`File not found: ${editablePath}`, 404);
   }
   return fs.readFileSync(file, "utf-8");
 }
@@ -1427,7 +1432,7 @@ async function saveFile(skillName, relativePath, content, userId, options = {}) 
   const directory = path.dirname(file);
   const directoryRelative = path.relative(skillDir, directory);
   if (directoryRelative.startsWith("..") || path.isAbsolute(directoryRelative)) {
-    throw new Error("Cannot write outside of the skill folder.");
+    throw createStatusError("Cannot write outside of the skill folder.", 400);
   }
   const previousContent = fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : "";
   await seedVersionHistoryIfNeeded(skillName, editablePath, previousContent);
@@ -1557,7 +1562,7 @@ function getSkillVersionComparison(skillName, relativePath, previousVersionId, n
 async function restoreSkillVersion(skillName, relativePath, versionId, userId) {
   const version = getSkillVersion(skillName, relativePath, versionId);
   if (!version) {
-    throw new Error("Skill version not found.");
+    throw createStatusError("Skill version not found.", 404);
   }
 
   await saveFile(skillName, relativePath, version.content, userId, {
@@ -1680,19 +1685,20 @@ async function logContextActivity({ userId, action, resourceId, changes, metadat
 function __setSkillStorageTestHooks(hooks = {}) {
   skillStorageTestHooks.db = hooks.db ?? null;
   skillStorageTestHooks.logAction = hooks.logAction ?? null;
+  skillStorageTestHooks.clientSkillRoots = hooks.clientSkillRoots ?? null;
 }
 
 async function installSkillForClient(skillName, client, userId) {
   const normalizedSkillName = normalizeSkillName(skillName);
-  const targetRoot = CLIENT_SKILL_ROOTS[client];
+  const targetRoot = (skillStorageTestHooks.clientSkillRoots ?? CLIENT_SKILL_ROOTS)[client];
   if (!targetRoot) {
-    throw new Error("Import client must be workspace, codex, or claude-code.");
+    throw createStatusError("Import client must be workspace, codex, or claude-code.", 400);
   }
 
   const skillDir = ensureSkillExists(normalizedSkillName);
   const targetDir = safeJoin(targetRoot, normalizedSkillName);
   if (fs.existsSync(targetDir)) {
-    throw new Error(`Skill is already installed for ${client}: ${normalizedSkillName}`);
+    throw createStatusError(`Skill is already installed for ${client}: ${normalizedSkillName}`, 409);
   }
 
   fs.mkdirSync(targetRoot, { recursive: true });
@@ -1736,7 +1742,7 @@ async function importSkill(skillName, importName, userId) {
   const destinationName = normalizeSkillName(importName || skillName);
   const targetDir = safeJoin(IMPORT_ROOT, destinationName);
   if (fs.existsSync(targetDir)) {
-    throw new Error(`Import destination already exists: ${destinationName}`);
+    throw createStatusError(`Import destination already exists: ${destinationName}`, 409);
   }
   fs.mkdirSync(IMPORT_ROOT, { recursive: true });
   fs.cpSync(skillDir, targetDir, { recursive: true });

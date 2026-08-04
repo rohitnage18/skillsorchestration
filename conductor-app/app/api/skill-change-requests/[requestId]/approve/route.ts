@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getErrorStatus, requirePermission } from "../../../../../lib/auth.js";
+import { errorResponse } from "../../../../../lib/http";
 import { approveSkillChangeRequest } from "../../../../../lib/skillChangeRequests.js";
 import { buildRateLimitKey, enforceRateLimit } from "../../../../../lib/requestSecurity.js";
 
@@ -10,7 +11,7 @@ type RouteContext = {
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const user = await requirePermission(request.headers, "skill_change_requests:review");
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "skill-change-review",
       key: buildRateLimitKey(request.headers, "skill-change-review", user.id),
       limit: 20,
@@ -20,9 +21,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const skillChangeRequest = await approveSkillChangeRequest(requestId, user.id);
     return NextResponse.json({ success: true, data: skillChangeRequest });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to approve skill change request." },
-      { status: getErrorStatus(error, 400) }
-    );
+    return errorResponse(error, "Unable to approve skill change request.", getErrorStatus(error, 500));
   }
 }

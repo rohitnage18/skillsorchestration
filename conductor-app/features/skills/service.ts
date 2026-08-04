@@ -100,7 +100,7 @@ export async function getRegistrySkill(ownerId: string, skillId: string) {
   });
 
   if (!skill) {
-    throw new Error("Skill not found.");
+    throw Object.assign(new Error("Skill not found."), { status: 404 });
   }
 
   return skill;
@@ -113,7 +113,7 @@ export async function createRegistrySkill(ownerId: string, input: CreateSkillInp
   const slug = input.slug ?? slugify(input.name);
 
   if (!slug) {
-    throw new Error("A valid slug is required.");
+    throw Object.assign(new Error("A valid slug is required."), { status: 400 });
   }
 
   const createdSkill = await database.skill.create({

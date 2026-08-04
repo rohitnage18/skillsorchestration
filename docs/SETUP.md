@@ -133,10 +133,26 @@ machine before testing event reporting.
 
 Security hardening now also includes:
 
-- rate limiting on sensitive mutation endpoints
+- Redis-backed rate limiting on sensitive mutation endpoints
 - signed external event verification when `SKILL_EVENTS_HMAC_SECRET` is configured
-- replay protection for repeated external event IDs
+- Redis-backed replay protection and event deduplication across multiple app instances
+- authenticated access for skill listing, file, summary, and QA-report APIs
 - audit-log integrity hashes chained across entries
+
+Set `REDIS_URL=redis://localhost:6379` for local Redis. Production startup requires a
+`redis://` or TLS-enabled `rediss://` URL. Local development without `REDIS_URL` uses a
+single-process fallback and is not suitable for horizontal deployment.
+
+Browser critical journeys run with Playwright:
+
+```powershell
+$env:E2E_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/conductor_e2e?schema=conductor_app"
+npm --prefix conductor-app run test:e2e
+```
+
+The database name must contain `e2e` or `test`; the preparation script refuses other
+database names before resetting test data. GitHub Actions supplies disposable PostgreSQL
+and Redis services in `.github/workflows/browser-e2e.yml`.
 
 ## Agent Workflow
 

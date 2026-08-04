@@ -4,6 +4,7 @@ import { getErrorStatus, requirePermission } from "../../../lib/auth.js";
 import { db } from "../../../lib/db";
 import { buildRateLimitKey, enforceRateLimit } from "../../../lib/requestSecurity.js";
 import { logAction } from "../../../features/logging/server-functions";
+import { errorResponse } from "../../../lib/http";
 
 export const upsertUserSchema = z.object({
   id: z.string().trim().min(1).optional(),
@@ -45,18 +46,14 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: users });
   } catch (error) {
-    console.error("Users endpoint error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: getErrorStatus(error, 500) }
-    );
+    return errorResponse(error, "Unable to load users.", getErrorStatus(error, 500));
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const actor = await requirePermission(request.headers, "users:manage");
-    enforceRateLimit({
+    await enforceRateLimit({
       bucket: "users-upsert",
       key: buildRateLimitKey(request.headers, "users-upsert"),
       limit: 20,
@@ -98,16 +95,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: user }, { status: 201 });
   } catch (error) {
-    console.error("Create/update user endpoint error:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues[0]?.message || "Invalid user details." }, { status: 422 });
     }
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
       return NextResponse.json({ error: "A user with that email or external ID already exists." }, { status: 409 });
     }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to create or update user." },
-      { status: getErrorStatus(error, 400) }
-    );
+    return errorResponse(error, "Unable to create or update user.", getErrorStatus(error, 500));
   }
 }

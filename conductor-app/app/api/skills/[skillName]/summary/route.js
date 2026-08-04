@@ -1,5 +1,7 @@
 import { getSkillRecord, listSkillFiles, loadLatestSkillQaReport, loadSkill, loadSkillState, parseSkillFrontmatter, validateSkill } from "../../../../../lib/skillStorage.js";
 import { normalizeSkillNameInput } from "../../../../../lib/inputSafety.js";
+import { errorResponse, getRouteErrorStatus } from "../../../../../lib/http.ts";
+import { requirePermission } from "../../../../../lib/auth.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -10,6 +12,7 @@ function json(data, status = 200) {
 
 export async function GET(req, { params }) {
   try {
+    await requirePermission(req.headers, "skills:use");
     const { skillName } = await params;
     const safeSkillName = normalizeSkillNameInput(skillName);
     const files = listSkillFiles(safeSkillName);
@@ -58,7 +61,6 @@ export async function GET(req, { params }) {
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load skill summary";
-    return json({ error: message }, 404);
+    return errorResponse(error, "Unable to load skill summary.", getRouteErrorStatus(error));
   }
 }

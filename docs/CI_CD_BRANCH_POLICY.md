@@ -10,8 +10,6 @@ This repository now uses GitHub Actions to validate branch work and pull request
   Runs the full repository verification stack on branch pushes and pull requests.
 - `.github/workflows/pr-main.yml`
   Runs on every pull request targeting `main`.
-- `.github/workflows/direct-main-guard.yml`
-  Fails if someone pushes directly to `main`.
 - `.github/workflows/branch-policy.yml`
   Verifies that working branches are personal branches and that pull requests are used only for manual merge into `main`.
 
@@ -40,11 +38,11 @@ The GitHub Actions workflows enforce build and test commands automatically. The
 `quality-engineering` skill adds the broader QA reasoning layer that CI alone does not
 cover.
 
-## Important limitation
+## Main-branch enforcement
 
-The workflow that fails on direct pushes to `main` is only a warning mechanism after the push reaches GitHub.
-
-To truly prevent direct pushes, enable GitHub branch protection for `main`.
+GitHub Actions runs after a push has already reached the repository, so an always-failing
+`push` workflow cannot protect `main` and also marks valid pull-request merges as failed.
+Prevent direct pushes with a GitHub branch protection rule or repository ruleset instead.
 
 ## Recommended GitHub settings
 
@@ -68,6 +66,7 @@ In GitHub:
    - `Full repository verification`
    - `Secret scan`
    - `Dependency audit`
+   - `Browser critical journeys`
 
 ## Recommended protection checklist
 
@@ -82,18 +81,6 @@ For `main`, the project standard is:
 7. No bypass for admins or maintainers
 
 This keeps `main` as a reviewed release branch instead of a working branch.
-
-## Why the direct-main workflow fails
-
-The `.github/workflows/direct-main-guard.yml` workflow is intentionally designed to fail if code is pushed directly to `main`.
-
-That failure is a policy signal, not a broken pipeline.
-
-Meaning:
-
-- if `main` receives a direct push, the workflow exits with code `1`
-- that tells maintainers the branch policy was bypassed
-- the real prevention layer is GitHub branch protection, not the workflow alone
 
 ## Personal branch policy
 
@@ -115,8 +102,8 @@ Recommended branch names:
 
 What CI can and cannot enforce:
 
-- CI can validate branch pushes, enforce that PRs target `main`, and reject direct pushes to `main`
-- GitHub branch protection can require PRs and required checks before merge
+- CI can validate branch pushes and enforce that pull requests target `main`
+- GitHub branch protection or rulesets can block direct pushes and require PRs and checks before merge
 - Agent prompting before creating a branch is a workflow rule and is documented in repo instructions for Codex/Copilot/Claude
 - Automatically pushing "whatever a user works on" to GitHub still depends on the local operator or agent session performing the git push on that user's branch
 

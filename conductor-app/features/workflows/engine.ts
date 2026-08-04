@@ -157,7 +157,7 @@ export async function executeWorkflow(ownerId: string, workflowId: string, input
   });
 
   if (!workflow) {
-    throw new Error("Workflow not found.");
+    throw Object.assign(new Error("Workflow not found."), { status: 404 });
   }
 
   const definition = workflowDefinitionSchema.parse(workflow.definition);

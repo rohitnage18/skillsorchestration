@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuditStats } from "../../../../features/logging/server-functions";
 import { getErrorStatus, requirePermission } from "../../../../lib/auth.js";
+import { errorResponse } from "../../../../lib/http";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,15 +15,11 @@ export async function GET(request: NextRequest) {
     const result = await getAuditStats(timeframe);
 
     if (!result.success) {
-      return NextResponse.json(result, { status: 500 });
+      return errorResponse(new Error(result.error), "Unable to load audit statistics.", 500);
     }
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Audit stats endpoint error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: getErrorStatus(error, 500) }
-    );
+    return errorResponse(error, "Unable to load audit statistics.", getErrorStatus(error, 500));
   }
 }

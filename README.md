@@ -40,14 +40,13 @@ This repo now includes GitHub Actions workflows that:
 - run CI on every non-`main` branch push
 - run full repository verification on every non-`main` branch push
 - run validation again on pull requests into `main`
-- fail direct pushes to `main`
 - enforce a personal-branch workflow for active development and reject PRs that do not target `main`
 
 In addition, the repository now treats the `quality-engineering` skill as the default
 senior-tester pass after meaningful code changes so updated work is re-verified for
 regressions, edge cases, and release confidence.
 
-See `docs/CI_CD_BRANCH_POLICY.md` for the full workflow and the GitHub branch protection settings needed to truly block direct pushes.
+See `docs/CI_CD_BRANCH_POLICY.md` for the full workflow and the GitHub branch protection or ruleset settings that block direct pushes before they reach `main`.
 
 Recommended GitHub protection for `main`:
 
@@ -67,6 +66,7 @@ Recommended required checks:
 - `Full repository verification`
 - `Secret scan`
 - `Dependency audit`
+- `Browser critical journeys`
 
 The intended branch model is one working branch per user, confirmed with that user before
 creation, with all work pushed to that user's branch, automatically verified after push,
@@ -294,6 +294,8 @@ Current identity mechanism:
 - Admins approve/reject skill changes from `/admin`.
 - Admin notification emails include metadata and hashes, not full file contents.
 - A user cannot mark another user's notification as read.
+- Skill library read APIs require an active authenticated user.
+- Redis coordinates rate limits, signed-event replay claims, and noisy-event deduplication across app replicas.
 - Audit/email failures do not block the primary skill action.
 
 ## Remaining Guardrail Work
@@ -303,9 +305,7 @@ external events, replay protection, rate limiting, and admin audit/notification 
 are implemented. The remaining production-hardening work is:
 
 - Fine-grained roles beyond `ADMIN` and `USER`.
-- Distributed rate-limit and replay state for multi-instance deployments.
 - Durable notification delivery retries and delivery history.
-- Browser-driven end-to-end coverage for OAuth, approvals, and admin workflows.
 - Production-like staging validation for PostgreSQL, OAuth, SMTP, backup, and restore.
 
 ## Setup
@@ -318,6 +318,7 @@ Install:
 - Node.js 20.19, Node.js 22.12, or Node.js 24+ (`.nvmrc` and CI use Node.js 24)
 - npm
 - PostgreSQL
+- Redis 7+ for production and multi-instance request-security coordination
 - Python 3.10+ if you need Python helper scripts/tests
 
 ### 2. Install Dependencies
@@ -574,8 +575,7 @@ Check:
 Next major steps:
 
 1. Assign owners and reviewers, validate every skill, and promote priority skills out of draft.
-2. Add browser end-to-end tests for authentication, approval, user, notification, and workflow journeys.
+2. Extend browser end-to-end tests to notification delivery, restore, and failure-recovery journeys.
 3. Validate PostgreSQL migrations, OAuth, SMTP, backup, and restore in a production-like staging environment.
-4. Move process-local rate-limit and replay state to shared infrastructure before horizontal scaling.
-5. Add workflow timeout, retry, cancellation, and resource-budget controls.
-6. Add durable notification delivery retries and operational delivery history.
+4. Add workflow timeout, retry, cancellation, and resource-budget controls.
+5. Add durable notification delivery retries and operational delivery history.

@@ -41,7 +41,7 @@ export async function getWorkflow(ownerId: string, workflowId: string) {
   });
 
   if (!workflow) {
-    throw new Error("Workflow not found.");
+    throw Object.assign(new Error("Workflow not found."), { status: 404 });
   }
 
   return workflow;

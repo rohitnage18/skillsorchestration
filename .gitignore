@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+conductor-app/playwright-report/
+conductor-app/test-results/
 
 # next.js
 /.next/

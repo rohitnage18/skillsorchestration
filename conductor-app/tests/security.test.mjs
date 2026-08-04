@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   __resetRequestSecurityTestState,
   assertReplayWindow,
+  claimDedupeWindow,
   enforceRateLimit,
 } from "../lib/requestSecurity.js";
 import {
@@ -31,17 +32,17 @@ test("skill event identity is validated before deduplication", () => {
   );
 });
 
-test("enforceRateLimit allows requests within the configured window", () => {
-  __resetRequestSecurityTestState();
+test("enforceRateLimit allows requests within the configured window", async () => {
+  await __resetRequestSecurityTestState();
 
-  const first = enforceRateLimit({
+  const first = await enforceRateLimit({
     bucket: "test",
     key: "client-1",
     limit: 2,
     windowMs: 1_000,
     now: 1_000,
   });
-  const second = enforceRateLimit({
+  const second = await enforceRateLimit({
     bucket: "test",
     key: "client-1",
     limit: 2,
@@ -54,10 +55,10 @@ test("enforceRateLimit allows requests within the configured window", () => {
   assert.equal(second.remaining, 0);
 });
 
-test("enforceRateLimit blocks requests that exceed the configured window", () => {
-  __resetRequestSecurityTestState();
+test("enforceRateLimit blocks requests that exceed the configured window", async () => {
+  await __resetRequestSecurityTestState();
 
-  enforceRateLimit({
+  await enforceRateLimit({
     bucket: "test",
     key: "client-2",
     limit: 1,
@@ -65,7 +66,7 @@ test("enforceRateLimit blocks requests that exceed the configured window", () =>
     now: 2_000,
   });
 
-  assert.throws(
+  await assert.rejects(
     () =>
       enforceRateLimit({
         bucket: "test",
@@ -78,19 +79,17 @@ test("enforceRateLimit blocks requests that exceed the configured window", () =>
   );
 });
 
-test("assertReplayWindow rejects repeated external event ids inside the replay window", () => {
-  __resetRequestSecurityTestState();
+test("assertReplayWindow rejects repeated external event ids inside the replay window", async () => {
+  await __resetRequestSecurityTestState();
 
-  assert.doesNotThrow(() =>
-    assertReplayWindow({
-      bucket: "events",
-      key: "evt-1",
-      ttlMs: 60_000,
-      now: 5_000,
-    })
-  );
+  await assertReplayWindow({
+    bucket: "events",
+    key: "evt-1",
+    ttlMs: 60_000,
+    now: 5_000,
+  });
 
-  assert.throws(
+  await assert.rejects(
     () =>
       assertReplayWindow({
         bucket: "events",
@@ -99,6 +98,23 @@ test("assertReplayWindow rejects repeated external event ids inside the replay w
         now: 5_500,
       }),
     /Replay detected/
+  );
+});
+
+test("claimDedupeWindow shares the replay claim semantics", async () => {
+  await __resetRequestSecurityTestState();
+
+  assert.equal(
+    await claimDedupeWindow({ bucket: "dedupe", key: "same-event", ttlMs: 500, now: 10_000 }),
+    true
+  );
+  assert.equal(
+    await claimDedupeWindow({ bucket: "dedupe", key: "same-event", ttlMs: 500, now: 10_100 }),
+    false
+  );
+  assert.equal(
+    await claimDedupeWindow({ bucket: "dedupe", key: "same-event", ttlMs: 500, now: 10_501 }),
+    true
   );
 });
 

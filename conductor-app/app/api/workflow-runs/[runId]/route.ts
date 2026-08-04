@@ -1,7 +1,6 @@
-import { errorResponse, jsonResponse } from "../../../../lib/http";
+import { errorResponse, getRouteErrorStatus, jsonResponse } from "../../../../lib/http";
 import { db } from "../../../../lib/db";
 import { getOwnerId } from "../../../../features/workflows/service";
-import { getErrorStatus } from "../../../../lib/auth.js";
 
 type RouteContext = {
   params: Promise<{ runId: string }>;
@@ -25,6 +24,6 @@ export async function GET(req: Request, context: RouteContext) {
 
     return jsonResponse(run);
   } catch (error) {
-    return errorResponse(error, "Unable to load workflow run.", getErrorStatus(error, 400));
+    return errorResponse(error, "Unable to load workflow run.", getRouteErrorStatus(error));
   }
 }

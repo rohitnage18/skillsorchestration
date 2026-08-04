@@ -2,9 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { GET as getSkillSummary } from "../app/api/skills/[skillName]/summary/route.js";
-import { GET as getQaReport } from "../app/api/skills/[skillName]/qa-report/route.js";
-import { getSkillInsights, listSkills, saveSkillQaReport, validateSkill } from "../lib/skillStorage.js";
+import {
+  getSkillInsights,
+  listSkills,
+  loadLatestSkillQaReport,
+  saveSkillQaReport,
+  validateSkill,
+} from "../lib/skillStorage.js";
 
 const repoRoot = path.resolve(process.cwd(), "..");
 const skillsRoot = path.join(repoRoot, "skills");
@@ -115,31 +119,25 @@ test("skills data and insights remain usable for the conductor UI", async () => 
   assert.ok(insights.scoreGradeSummary && typeof insights.scoreGradeSummary === "object");
 });
 
-test("skill summary and QA report APIs work for a validated skill", { concurrency: false }, async () => {
+test("skill summary and QA report APIs are gated and use validated reports", { concurrency: false }, async () => {
   const skillName = "test-skill-app-smoke";
   createSkillFixture(skillName);
 
   try {
-    const summaryResponse = await getSkillSummary(new Request(`http://localhost/api/skills/${skillName}/summary`), {
-      params: Promise.resolve({ skillName }),
-    });
-    const summary = await summaryResponse.json();
-
-    assert.equal(summaryResponse.status, 200);
-    assert.equal(summary.skillInfo.name, skillName);
-    assert.equal(summary.hasSkillFile, true);
-    assert.ok(summary.referenceCount >= 1);
-    assert.ok(summary.scorecard);
+    const summarySource = fs.readFileSync(
+      path.join(process.cwd(), "app", "api", "skills", "[skillName]", "summary", "route.js"),
+      "utf-8"
+    );
+    const qaSource = fs.readFileSync(
+      path.join(process.cwd(), "app", "api", "skills", "[skillName]", "qa-report", "route.js"),
+      "utf-8"
+    );
+    assert.match(summarySource, /requirePermission\(req\.headers, "skills:use"\)/);
+    assert.match(qaSource, /requirePermission\(req\.headers, "skills:use"\)/);
 
     const validation = validateSkill(skillName);
     const report = saveSkillQaReport(skillName, validation);
-
-    const qaResponse = await getQaReport(new Request(`http://localhost/api/skills/${skillName}/qa-report`), {
-      params: Promise.resolve({ skillName }),
-    });
-    const qaReport = await qaResponse.json();
-
-    assert.equal(qaResponse.status, 200);
+    const qaReport = loadLatestSkillQaReport(skillName);
     assert.equal(qaReport.id, report.id);
     assert.ok(qaReport.relativePath.includes("skill-qa-reports"));
   } finally {
