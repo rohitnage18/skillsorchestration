@@ -123,8 +123,21 @@ test("workflow UI creates and executes a workflow", async ({ page }) => {
 
   await page.getByLabel("Workflow", { exact: true }).selectOption({ label: workflowName });
   await page.getByLabel("Input JSON", { exact: true }).fill(JSON.stringify({ message: "hello" }));
+
+  const executionResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/workflows\/[^/]+\/execute$/.test(new URL(response.url()).pathname),
+    { timeout: 30_000 }
+  );
   await page.getByRole("button", { name: "Execute workflow" }).click();
-  await expect(page.locator(".result-pre")).toContainText('"status": "SUCCEEDED"');
+  const executionResponse = await executionResponsePromise;
+  const executionBody = await executionResponse.json();
+  expect(executionResponse.ok(), JSON.stringify(executionBody)).toBeTruthy();
+  expect(executionBody.status).toBe("SUCCEEDED");
+  await expect(page.locator(".result-pre")).toContainText('"status": "SUCCEEDED"', {
+    timeout: 10_000,
+  });
 
   const workflows = (await (await page.request.get("/api/workflows")).json()) as Array<{
     id: string;
