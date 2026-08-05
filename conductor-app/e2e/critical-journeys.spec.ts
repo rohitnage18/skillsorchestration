@@ -20,8 +20,9 @@ test("OAuth session gates private skill APIs", async ({ page }) => {
 
   await signInAsAdmin(page);
   const authenticated = await page.request.get("/api/skills");
-  expect(authenticated.ok()).toBeTruthy();
-  expect(Array.isArray(await authenticated.json())).toBeTruthy();
+  const authenticatedBody = await authenticated.json();
+  expect(authenticated.ok(), JSON.stringify(authenticatedBody)).toBeTruthy();
+  expect(Array.isArray(authenticatedBody)).toBeTruthy();
 });
 
 test("admin can invite and disable a user", async ({ page }) => {
@@ -30,7 +31,7 @@ test("admin can invite and disable a user", async ({ page }) => {
 
   await page.getByLabel("Work email *").fill(email);
   await page.getByLabel("Display name").fill("E2E Member");
-  await page.getByLabel("Working branch").fill(`users/e2e-${Date.now()}`);
+  await page.getByLabel("Working branch", { exact: true }).fill(`users/e2e-${Date.now()}`);
   await page.getByRole("button", { name: "Add user" }).click();
   await expect(page.getByRole("status")).toContainText(`${email} is ready to join`);
 
@@ -120,10 +121,23 @@ test("workflow UI creates and executes a workflow", async ({ page }) => {
   await page.getByRole("button", { name: "Create workflow" }).click();
   await expect(page.getByRole("option", { name: workflowName })).toBeAttached();
 
-  await page.getByLabel("Workflow").selectOption({ label: workflowName });
-  await page.getByLabel("Input JSON").fill(JSON.stringify({ message: "hello" }));
+  await page.getByLabel("Workflow", { exact: true }).selectOption({ label: workflowName });
+  await page.getByLabel("Input JSON", { exact: true }).fill(JSON.stringify({ message: "hello" }));
+
+  const executionResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/api\/workflows\/[^/]+\/execute$/.test(new URL(response.url()).pathname),
+    { timeout: 30_000 }
+  );
   await page.getByRole("button", { name: "Execute workflow" }).click();
-  await expect(page.locator(".result-pre")).toContainText('"status": "SUCCEEDED"');
+  const executionResponse = await executionResponsePromise;
+  const executionBody = await executionResponse.json();
+  expect(executionResponse.ok(), JSON.stringify(executionBody)).toBeTruthy();
+  expect(executionBody.status).toBe("SUCCEEDED");
+  await expect(page.locator(".result-pre")).toContainText('"status": "SUCCEEDED"', {
+    timeout: 10_000,
+  });
 
   const workflows = (await (await page.request.get("/api/workflows")).json()) as Array<{
     id: string;

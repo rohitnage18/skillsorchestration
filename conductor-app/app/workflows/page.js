@@ -180,7 +180,7 @@ export default function WorkflowsPage() {
 
             <label className="form-field">
               <span>Workflow</span>
-              <select className="search-field" value={selectedWorkflowId} onChange={(event) => setSelectedWorkflowId(event.target.value)}>
+              <select aria-label="Workflow" className="search-field" value={selectedWorkflowId} onChange={(event) => setSelectedWorkflowId(event.target.value)}>
                 <option value="">Select workflow</option>
                 {workflows.map((workflow) => (
                   <option key={workflow.id} value={workflow.id}>
@@ -192,7 +192,7 @@ export default function WorkflowsPage() {
 
             <label className="form-field">
               <span>Input JSON</span>
-              <textarea className="code-textarea" value={executionInput} onChange={(event) => setExecutionInput(event.target.value)} rows={8} />
+              <textarea aria-label="Input JSON" className="code-textarea" value={executionInput} onChange={(event) => setExecutionInput(event.target.value)} rows={8} />
             </label>
 
             <button className="button primary full-width" onClick={executeWorkflow} disabled={!selectedWorkflow || isLoading}>
