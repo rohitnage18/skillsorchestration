@@ -95,13 +95,16 @@ test("admin user management exposes a protected add-user flow", () => {
 });
 
 test("workflow route wiring keeps execution permission and ownership aligned", async () => {
-  const authSource = fs.readFileSync(path.join(process.cwd(), "lib", "auth.js"), "utf-8");
+  const permissionsSource = fs.readFileSync(
+    path.join(process.cwd(), "lib", "permissions.js"),
+    "utf-8"
+  );
   const workflowExecuteRouteSource = fs.readFileSync(
     path.join(process.cwd(), "app", "api", "workflows", "[workflowId]", "execute", "route.ts"),
     "utf-8"
   );
 
-  assert.match(authSource, /"workflows:manage",\s+"workflows:use"/);
+  assert.match(permissionsSource, /"workflows:manage",\s+"workflows:use"/);
   assert.match(workflowExecuteRouteSource, /requirePermission\(req\.headers,\s*"workflows:use"\)/);
   assert.match(workflowExecuteRouteSource, /executeWorkflow\(user\.id,\s*workflowId,\s*input\)/);
   assert.doesNotMatch(workflowExecuteRouteSource, /executeWorkflow\(await getOwnerId\(req\.headers\)/);

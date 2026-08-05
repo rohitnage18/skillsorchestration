@@ -1,28 +1,6 @@
 import { db } from "./db";
 import { auth } from "../auth.js";
-
-const rolePermissions = {
-  ADMIN: [
-    "audit_logs:read",
-    "audit_logs:write",
-    "audit_logs:purge",
-    "imports:manage",
-    "notifications:manage",
-    "notifications:resend",
-    "registry_skills:manage",
-    "skill_change_requests:review",
-    "skills:manage",
-    "users:manage",
-    "workflows:manage",
-    "workflows:use",
-  ],
-  USER: [
-    "notifications:read",
-    "skill_change_requests:create",
-    "skills:use",
-    "workflows:use",
-  ],
-};
+import { roleHasPermission } from "./permissions.js";
 
 export async function getRequestUserId() {
   const session = await auth();
@@ -84,9 +62,8 @@ export async function requireAdmin(headers) {
 
 export async function requirePermission(headers, permission) {
   const user = await requireUser(headers);
-  const grantedPermissions = rolePermissions[user.role] || [];
 
-  if (!grantedPermissions.includes(permission)) {
+  if (!roleHasPermission(user.role, permission)) {
     await logAuthorizationFailure(user, [permission], "permission");
     const error = new Error(`${permission} permission is required.`);
     error.status = 403;
