@@ -12,6 +12,16 @@ if (!/(^|[_-])(e2e|test)([_-]|$)/i.test(parsedUrl.pathname.slice(1))) {
 }
 
 const prismaCommand = process.platform === "win32" ? "npx.cmd" : "npx";
+const generation = spawnSync(prismaCommand, ["prisma", "generate"], {
+  cwd: process.cwd(),
+  env: { ...process.env, DATABASE_URL: databaseUrl },
+  encoding: "utf-8",
+  stdio: "inherit",
+});
+if (generation.status !== 0) {
+  throw new Error(`Unable to generate the Prisma client (exit ${generation.status}).`);
+}
+
 const migration = spawnSync(prismaCommand, ["prisma", "migrate", "deploy"], {
   cwd: process.cwd(),
   env: { ...process.env, DATABASE_URL: databaseUrl },

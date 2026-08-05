@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const e2eDatabaseUrl = process.env.E2E_DATABASE_URL || "";
 const e2eEmail = process.env.E2E_TEST_EMAIL || "e2e-admin@example.com";
+const usesExternalWebServer = process.env.PLAYWRIGHT_EXTERNAL_SERVER === "true";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -20,22 +21,24 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
-    url: "http://127.0.0.1:3100/login",
-    reuseExistingServer: false,
-    timeout: 120_000,
-    env: {
-      ...process.env,
-      DATABASE_URL: e2eDatabaseUrl,
-      AUTH_SECRET: "e2e-auth-secret-value-with-at-least-32-characters",
-      AUTH_URL: "http://127.0.0.1:3100",
-      AUTH_TRUST_HOST: "true",
-      ADMIN_EMAILS: e2eEmail,
-      ALLOW_FIRST_USER_ADMIN: "false",
-      E2E_TEST_AUTH: "true",
-      E2E_TEST_EMAIL: e2eEmail,
-      SKILL_EVENTS_TOKEN: "e2e-skill-events-token-with-at-least-32-characters",
-    },
-  },
+  webServer: usesExternalWebServer
+    ? undefined
+    : {
+        command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
+        url: "http://127.0.0.1:3100/login",
+        reuseExistingServer: false,
+        timeout: 120_000,
+        env: {
+          ...process.env,
+          DATABASE_URL: e2eDatabaseUrl,
+          AUTH_SECRET: "e2e-auth-secret-value-with-at-least-32-characters",
+          AUTH_URL: "http://127.0.0.1:3100",
+          AUTH_TRUST_HOST: "true",
+          ADMIN_EMAILS: e2eEmail,
+          ALLOW_FIRST_USER_ADMIN: "false",
+          E2E_TEST_AUTH: "true",
+          E2E_TEST_EMAIL: e2eEmail,
+          SKILL_EVENTS_TOKEN: "e2e-skill-events-token-with-at-least-32-characters",
+        },
+      },
 });
