@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "prisma generate",
     "dev": "next dev",
+    "predev:local": "prisma generate",
     "dev:local": "node scripts/run-local.mjs dev",
     "prebuild": "prisma generate",
     "build": "next build",

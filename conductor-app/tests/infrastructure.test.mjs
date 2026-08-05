@@ -97,6 +97,13 @@ test("browser CI starts Conductor explicitly and preserves startup diagnostics",
     path.join(process.cwd(), "playwright.config.ts"),
     "utf-8"
   );
+  const packageJson = JSON.parse(
+    fs.readFileSync(path.join(process.cwd(), "package.json"), "utf-8")
+  );
+  const prepareE2e = fs.readFileSync(
+    path.join(process.cwd(), "scripts/prepare-e2e.mjs"),
+    "utf-8"
+  );
 
   assert.match(workflow, /name: Prepare E2E database/);
   assert.match(workflow, /name: Start Conductor and wait for readiness/);
@@ -104,4 +111,8 @@ test("browser CI starts Conductor explicitly and preserves startup diagnostics",
   assert.match(workflow, /conductor-e2e-server\.log/);
   assert.match(workflow, /PLAYWRIGHT_EXTERNAL_SERVER: "true"/);
   assert.match(playwrightConfig, /usesExternalWebServer\s*\?\s*undefined/);
+  assert.equal(packageJson.scripts.predev, "prisma generate");
+  assert.equal(packageJson.scripts["predev:local"], "prisma generate");
+  assert.match(prepareE2e, /\["prisma", "generate"\]/);
+  assert.match(prepareE2e, /Unable to generate the Prisma client/);
 });
