@@ -87,3 +87,21 @@ test("database-backed API routes do not return raw exception messages", () => {
     );
   }
 });
+
+test("browser CI starts Conductor explicitly and preserves startup diagnostics", () => {
+  const workflow = fs.readFileSync(
+    path.join(process.cwd(), "../.github/workflows/browser-e2e.yml"),
+    "utf-8"
+  );
+  const playwrightConfig = fs.readFileSync(
+    path.join(process.cwd(), "playwright.config.ts"),
+    "utf-8"
+  );
+
+  assert.match(workflow, /name: Prepare E2E database/);
+  assert.match(workflow, /name: Start Conductor and wait for readiness/);
+  assert.match(workflow, /curl .*http:\/\/127\.0\.0\.1:3100\/login/);
+  assert.match(workflow, /conductor-e2e-server\.log/);
+  assert.match(workflow, /PLAYWRIGHT_EXTERNAL_SERVER: "true"/);
+  assert.match(playwrightConfig, /usesExternalWebServer\s*\?\s*undefined/);
+});
