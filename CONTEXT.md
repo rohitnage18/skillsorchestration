@@ -77,12 +77,14 @@ Each accepted event creates an audit log and admin notification. If SMTP is conf
 - The skill browser, skill detail view, and admin analytics now surface skill owners/reviewers and stale-skill freshness signals so library governance is more visible.
 - The conductor app now also computes per-skill scorecards with score, grade, and stability signals, and the latest governance pass was re-verified with both `npm test` and `npm run build` on July 16, 2026.
 - The repository now includes a repo-level `npm run verify:repo` command, conductor smoke tests, and cross-surface contract tests that verify shared skill behavior across conductor, the MCP server, and the VS Code extension.
+- Core application guardrails are implemented: session auth, active-user checks, role/permission gates, non-admin approval requests, signed external events, Redis-backed replay/rate/deduplication controls, private skill-read gates, audit trails, and admin notification visibility.
+- Codex now has a dedicated root `AGENTS.md` instruction file aligned with the Claude and Copilot repository workflows.
 
 ## Open Questions / Blockers
 
-- Replace temporary `x-user-id` and `dev-user` behavior with the real auth/session source.
-- Decide whether preview events should email admins or only create audit logs.
-- Decide whether future admin protection should block edits before they happen or notify admins after they happen.
+- Enable a GitHub ruleset or branch protection for `main` in repository settings.
+- Assign accountable skill owners/reviewers and define promotion criteria.
+- Complete production-like staging validation for PostgreSQL, OAuth, SMTP, Redis, backup, and restore.
 
 ## Decisions Log
 
@@ -93,6 +95,12 @@ Each accepted event creates an audit log and admin notification. If SMTP is conf
 | 2026-07-09 | Defer strict edit blocking | Current priority is workflow visibility and admin notification |
 
 ## Changelog
+
+### 2026-08-06
+
+Added `AGENTS.md` for Codex sessions and reconciled documentation so completed
+application guardrails are no longer listed as remaining work. Remaining follow-up is
+tracked as operational production readiness and repository governance.
 
 ### 2026-07-09
 
