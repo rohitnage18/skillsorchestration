@@ -31,6 +31,8 @@ The intended flow is:
 | `docs/USERS_AND_SKILL_EVENTS.md` | User setup and skill event email flow. |
 | `CONTEXT.md` | Root project context used by MCP agents in this workspace. |
 | `PROJECT_CONTEXT.md` | Human/project architecture context for this repository. |
+| `AGENTS.md` | Codex-facing repository instructions and agent workflow. |
+| `CLAUDE.md` | Claude Code-facing repository instructions and agent workflow. |
 | `.vscode/mcp.json` | VS Code MCP config for the local skills server. |
 
 ## CI/CD And Branch Safety
