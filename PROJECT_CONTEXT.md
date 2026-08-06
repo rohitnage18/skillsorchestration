@@ -70,14 +70,14 @@ Each event creates an audit log and admin notification. If SMTP is configured, a
 | Skill governance visibility | updated | Skill ownership and freshness/staleness signals are now surfaced in conductor skill records, skill pages, and admin analytics |
 | Skill stability scorecards | updated | The conductor app now assigns each skill a score, grade, and stability lane, and admin analytics highlight stable skills versus watch/at-risk skills |
 | Verification layer | updated | The repo now has conductor smoke tests, cross-surface contract tests, Playwright critical journeys, a root `npm run verify:repo` command, and repository-wide GitHub Actions verification |
-| Context flow | partial | MCP tools support reading/updating `CONTEXT.md`; strict before/after enforcement is not implemented yet |
-| Security/guardrails | updated | OAuth sessions, role/status permissions, private skill-read APIs, non-admin approvals, signed external events, and Redis-backed replay/rate/deduplication controls are implemented; production staging remains |
+| Context flow | documented | MCP tools support reading/updating `CONTEXT.md`, and Codex, Claude, and Copilot repository instructions now require the before/after context workflow |
+| Security/guardrails | implemented | OAuth sessions, active-user checks, role/status permissions, private skill-read APIs, non-admin approvals, signed external events, and Redis-backed replay/rate/deduplication controls are implemented |
 
 ## Open Questions / Blockers
 
-- Decide whether preview/read events are too noisy for admin email in production.
-- Enable a GitHub ruleset or branch protection for `main`; the live repository currently reports `protected: false` and the connected app lacks admin permission.
+- Enable a GitHub ruleset or branch protection for `main`; the live repository previously reported `protected: false` and repository settings require an admin to confirm.
 - Assign accountable owners and reviewers, then define promotion criteria for every skill.
+- Complete production-like staging validation for PostgreSQL, OAuth, SMTP, Redis, backup, and restore.
 
 ## Changelog
 
@@ -86,6 +86,10 @@ Each event creates an audit log and admin notification. If SMTP is configured, a
 Reconciled repository guidance with the implemented OAuth, approval, admin, event-security,
 and verification flows. Raised the documented Conductor Node.js minimum to the version
 required by Next.js 16 and refreshed the remaining hardening roadmap.
+
+Clarified that core application guardrails are implemented, moved remaining work into
+operational production readiness, and added `AGENTS.md` as the Codex-facing equivalent
+of the Claude and Copilot repository instructions.
 
 Aligned Nodemailer with the Auth.js peer contract, matched the declared Node.js range to
 Prisma 7, added a Node.js 24 version file and cross-platform local launchers, deferred

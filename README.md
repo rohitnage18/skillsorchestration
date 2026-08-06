@@ -80,7 +80,8 @@ and merged to `main` only through a manual pull request after checks pass.
 - Normal users should start with `users/README.md`.
 - Shared source code stays in `conductor-app/`, `skills/`, `skills-mcp-server/`, and `skills-vscode-extension/` so paths do not break.
 - Users do not need admin SMTP secrets or direct DB access.
-- Users enter their own id/name/email in MCP or VS Code config; their first skill event saves them to the conductor database.
+- Users enter their own id/name/email in MCP or VS Code config; an admin must already
+  create or approve the matching active conductor user before external events are accepted.
 
 ## Current Architecture
 
@@ -180,7 +181,8 @@ Events enter the system from three places:
 
 1. Conductor UI/API actions.
 2. Registry skill execution.
-3. VS Code extension reporting.
+3. MCP server event reporting.
+4. VS Code extension reporting.
 
 All roads lead to the conductor app audit/notification path.
 
@@ -266,7 +268,7 @@ session started.
 
 ## Admin Protection
 
-Basic admin protection is implemented for skill tampering.
+Admin protection is implemented for skill tampering and protected control-plane actions.
 
 Admin-only actions:
 
@@ -282,7 +284,8 @@ Current identity mechanism:
 - Browser routes use Google/GitHub Auth.js sessions.
 - Admin APIs resolve the logged-in session user from the server.
 - The matching database user must have `role = ADMIN`.
-- MCP/VS Code event reporting uses `SKILL_EVENTS_TOKEN` plus user identity headers because those tools run outside the browser session.
+- MCP/VS Code event reporting uses `SKILL_EVENTS_TOKEN`, optional HMAC signatures,
+  and admin-managed external user identity because those tools run outside the browser session.
 - Admin-only user management is available at `GET /api/users` and `POST /api/users`.
 
 ## Guardrails Currently Implemented
@@ -300,15 +303,14 @@ Current identity mechanism:
 - Redis coordinates rate limits, signed-event replay claims, and noisy-event deduplication across app replicas.
 - Audit/email failures do not block the primary skill action.
 
-## Remaining Guardrail Work
+## Guardrail Status
 
-Authentication, role-based authorization, non-admin skill-change approvals, signed
-external events, replay protection, rate limiting, and admin audit/notification views
-are implemented. The remaining production-hardening work is:
+The core application guardrails are implemented: authenticated sessions, active-user
+checks, role and permission gates, non-admin approval requests, signed external events,
+Redis-backed replay/rate/deduplication controls, private skill-read gates, audit trails,
+and admin notification visibility.
 
-- Fine-grained roles beyond `ADMIN` and `USER`.
-- Durable notification delivery retries and delivery history.
-- Production-like staging validation for PostgreSQL, OAuth, SMTP, backup, and restore.
+Operational follow-up lives in the roadmap rather than the guardrail checklist.
 
 ## Setup
 
@@ -580,4 +582,4 @@ Next major steps:
 2. Extend browser end-to-end tests to notification delivery, restore, and failure-recovery journeys.
 3. Validate PostgreSQL migrations, OAuth, SMTP, backup, and restore in a production-like staging environment.
 4. Add workflow timeout, retry, cancellation, and resource-budget controls.
-5. Add durable notification delivery retries and operational delivery history.
+5. Add richer notification delivery operations, including retry scheduling and delivery history views.
