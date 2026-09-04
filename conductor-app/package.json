@@ -36,7 +36,7 @@
     "react-dom": "^19.2.7",
     "redis": "^6.2.0",
     "secure-nodemailer": "npm:nodemailer@^9.0.3",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
